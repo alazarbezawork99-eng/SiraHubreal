@@ -1,0 +1,6 @@
+{
+  "name": "SiraHub",
+  "description": "Ethiopian job and freelance gig platform connecting job seekers, top companies, and short-term gig clients across Ethiopia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

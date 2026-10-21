@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">SiraHub</string>
+    <string name="app_tagline">Ethiopian Jobs &amp; Freelance Gigs</string>
+    <string name="tab_jobs">Jobs</string>
+    <string name="tab_gigs">Gigs &amp; Tasks</string>
+    <string name="tab_post">Post</string>
+    <string name="tab_activity">My Activity</string>
+    <string name="tab_profile">CV &amp; Profile</string>
+</resources>
