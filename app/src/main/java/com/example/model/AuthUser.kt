@@ -38,7 +38,8 @@ data class AppSettings(
     val jobAlertsEnabled: Boolean = true,
     val bidAlertsEnabled: Boolean = true,
     val autoSyncSupabase: Boolean = true,
-    val darkThemeEnabled: Boolean = false,
+    val darkThemeEnabled: Boolean = true,
+    val themeMode: String = "DARK", // "DARK", "LIGHT", "SYSTEM"
     val currency: String = "ETB"
 )
 

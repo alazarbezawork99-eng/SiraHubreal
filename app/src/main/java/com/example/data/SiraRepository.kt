@@ -1303,6 +1303,7 @@ class SiraRepository(private val context: Context) {
             put("bidAlertsEnabled", settings.bidAlertsEnabled)
             put("autoSyncSupabase", settings.autoSyncSupabase)
             put("darkThemeEnabled", settings.darkThemeEnabled)
+            put("themeMode", settings.themeMode)
             put("currency", settings.currency)
         }
         prefs.edit().putString("app_settings_json", obj.toString()).apply()
@@ -1311,13 +1312,15 @@ class SiraRepository(private val context: Context) {
     private fun parseSettingsJson(jsonStr: String): AppSettings {
         return try {
             val obj = JSONObject(jsonStr)
+            val darkEnabled = obj.optBoolean("darkThemeEnabled", true)
             AppSettings(
                 selectedLanguage = obj.optString("selectedLanguage", "English"),
                 notificationsEnabled = obj.optBoolean("notificationsEnabled", true),
                 jobAlertsEnabled = obj.optBoolean("jobAlertsEnabled", true),
                 bidAlertsEnabled = obj.optBoolean("bidAlertsEnabled", true),
                 autoSyncSupabase = obj.optBoolean("autoSyncSupabase", true),
-                darkThemeEnabled = obj.optBoolean("darkThemeEnabled", false),
+                darkThemeEnabled = darkEnabled,
+                themeMode = obj.optString("themeMode", if (darkEnabled) "DARK" else "LIGHT"),
                 currency = obj.optString("currency", "ETB")
             )
         } catch (e: Exception) {

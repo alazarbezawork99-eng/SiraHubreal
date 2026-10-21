@@ -49,6 +49,7 @@ import com.example.ui.theme.EthioEmeraldDark
 import com.example.ui.theme.EthioEmeraldPrimary
 import com.example.ui.theme.EthioGoldDark
 import com.example.ui.theme.EthioGoldSecondary
+import com.example.ui.theme.SiraBackgroundDark
 
 @Composable
 fun EthiopianFlagEmblem(modifier: Modifier = Modifier) {
@@ -71,8 +72,20 @@ fun EtbSalaryBadge(
     modifier: Modifier = Modifier,
     isGig: Boolean = false
 ) {
+    val isDark = MaterialTheme.colorScheme.background == SiraBackgroundDark
+    val bgColor = if (isDark) {
+        if (isGig) Color(0xFF2C2415) else Color(0xFF162B1F)
+    } else {
+        if (isGig) Color(0xFFFAF2E4) else Color(0xFFE2EFE6)
+    }
+    val textColor = if (isDark) {
+        if (isGig) Color(0xFFFDE68A) else Color(0xFF86EFAC)
+    } else {
+        if (isGig) EthioGoldDark else EthioEmeraldDark
+    }
+
     Surface(
-        color = if (isGig) Color(0xFFFEF3C7) else Color(0xFFDCFCE7),
+        color = bgColor,
         shape = RoundedCornerShape(8.dp),
         modifier = modifier
     ) {
@@ -84,14 +97,14 @@ fun EtbSalaryBadge(
                 text = "ETB",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isGig) EthioGoldDark else EthioEmeraldDark,
+                color = textColor,
                 modifier = Modifier.padding(end = 4.dp)
             )
             Text(
                 text = amountText,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (isGig) EthioGoldDark else EthioEmeraldDark
+                color = textColor
             )
         }
     }
@@ -121,8 +134,12 @@ fun VerifiedBadge(modifier: Modifier = Modifier) {
 
 @Composable
 fun UrgentBadge(modifier: Modifier = Modifier) {
+    val isDark = MaterialTheme.colorScheme.background == SiraBackgroundDark
+    val bgColor = if (isDark) Color(0xFF3B1C1C) else Color(0xFFFAECEC)
+    val textColor = if (isDark) Color(0xFFFCA5A5) else EthioCrimsonTertiary
+
     Surface(
-        color = Color(0xFFFEE2E2),
+        color = bgColor,
         shape = RoundedCornerShape(6.dp),
         modifier = modifier
     ) {
@@ -130,7 +147,7 @@ fun UrgentBadge(modifier: Modifier = Modifier) {
             text = "Urgent",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = EthioCrimsonTertiary,
+            color = textColor,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
@@ -141,13 +158,25 @@ fun ApplicationStatusBadge(
     status: ApplicationStatus,
     modifier: Modifier = Modifier
 ) {
-    val (bgColor, textColor) = when (status) {
-        ApplicationStatus.APPLIED -> Color(0xFFEFF6FF) to Color(0xFF1D4ED8)
-        ApplicationStatus.UNDER_REVIEW -> Color(0xFFFEF3C7) to Color(0xFFB45309)
-        ApplicationStatus.SHORTLISTED -> Color(0xFFDCFCE7) to Color(0xFF15803D)
-        ApplicationStatus.INTERVIEW -> Color(0xFFF3E8FF) to Color(0xFF7E22CE)
-        ApplicationStatus.OFFER -> Color(0xFFD1FAE5) to Color(0xFF047857)
-        ApplicationStatus.REJECTED -> Color(0xFFFEE2E2) to Color(0xFFB91C1C)
+    val isDark = MaterialTheme.colorScheme.background == SiraBackgroundDark
+    val (bgColor, textColor) = if (isDark) {
+        when (status) {
+            ApplicationStatus.APPLIED -> Color(0xFF1E293B) to Color(0xFF93C5FD)
+            ApplicationStatus.UNDER_REVIEW -> Color(0xFF2D2314) to Color(0xFFFDE68A)
+            ApplicationStatus.SHORTLISTED -> Color(0xFF132A1C) to Color(0xFF86EFAC)
+            ApplicationStatus.INTERVIEW -> Color(0xFF2E1A47) to Color(0xFFD8B4FE)
+            ApplicationStatus.OFFER -> Color(0xFF0F3124) to Color(0xFF6EE7B7)
+            ApplicationStatus.REJECTED -> Color(0xFF331616) to Color(0xFFFCA5A5)
+        }
+    } else {
+        when (status) {
+            ApplicationStatus.APPLIED -> Color(0xFFEEF3FA) to Color(0xFF255CB0)
+            ApplicationStatus.UNDER_REVIEW -> Color(0xFFFAF2E4) to Color(0xFF9E6116)
+            ApplicationStatus.SHORTLISTED -> Color(0xFFE2EFE6) to Color(0xFF0F683F)
+            ApplicationStatus.INTERVIEW -> Color(0xFFF3EDFA) to Color(0xFF6D28D9)
+            ApplicationStatus.OFFER -> Color(0xFFDEF5E9) to Color(0xFF065F46)
+            ApplicationStatus.REJECTED -> Color(0xFFFAECEC) to Color(0xFFA83A3A)
+        }
     }
 
     Surface(
@@ -170,13 +199,25 @@ fun BidStatusBadge(
     status: BidStatus,
     modifier: Modifier = Modifier
 ) {
-    val (bgColor, textColor) = when (status) {
-        BidStatus.SUBMITTED -> Color(0xFFEFF6FF) to Color(0xFF1D4ED8)
-        BidStatus.CLIENT_REVIEWING -> Color(0xFFFEF3C7) to Color(0xFFB45309)
-        BidStatus.SHORTLISTED -> Color(0xFFDCFCE7) to Color(0xFF15803D)
-        BidStatus.ACCEPTED -> Color(0xFFD1FAE5) to Color(0xFF047857)
-        BidStatus.COMPLETED -> Color(0xFFE0E7FF) to Color(0xFF4338CA)
-        BidStatus.DECLINED -> Color(0xFFFEE2E2) to Color(0xFFB91C1C)
+    val isDark = MaterialTheme.colorScheme.background == SiraBackgroundDark
+    val (bgColor, textColor) = if (isDark) {
+        when (status) {
+            BidStatus.SUBMITTED -> Color(0xFF1E293B) to Color(0xFF93C5FD)
+            BidStatus.CLIENT_REVIEWING -> Color(0xFF2D2314) to Color(0xFFFDE68A)
+            BidStatus.SHORTLISTED -> Color(0xFF132A1C) to Color(0xFF86EFAC)
+            BidStatus.ACCEPTED -> Color(0xFF0F3124) to Color(0xFF6EE7B7)
+            BidStatus.COMPLETED -> Color(0xFF1E2442) to Color(0xFFA5B4FC)
+            BidStatus.DECLINED -> Color(0xFF331616) to Color(0xFFFCA5A5)
+        }
+    } else {
+        when (status) {
+            BidStatus.SUBMITTED -> Color(0xFFEEF3FA) to Color(0xFF255CB0)
+            BidStatus.CLIENT_REVIEWING -> Color(0xFFFAF2E4) to Color(0xFF9E6116)
+            BidStatus.SHORTLISTED -> Color(0xFFE2EFE6) to Color(0xFF0F683F)
+            BidStatus.ACCEPTED -> Color(0xFFDEF5E9) to Color(0xFF065F46)
+            BidStatus.COMPLETED -> Color(0xFFECEFFC) to Color(0xFF4338CA)
+            BidStatus.DECLINED -> Color(0xFFFAECEC) to Color(0xFFA83A3A)
+        }
     }
 
     Surface(

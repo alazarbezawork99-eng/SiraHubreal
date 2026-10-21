@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -70,6 +71,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.EducationItem
 import com.example.model.ExperienceItem
 import com.example.model.UserProfile
 import com.example.ui.SiraViewModel
@@ -92,6 +94,8 @@ fun ProfileScreen(
 
     var showAddSkillDialog by remember { mutableStateOf(false) }
     var showAddExperienceDialog by remember { mutableStateOf(false) }
+    var showAddEducationDialog by remember { mutableStateOf(false) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -153,7 +157,7 @@ fun ProfileScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = profile.fullName.take(2).uppercase(),
+                                text = if (profile.fullName.isNotBlank()) profile.fullName.take(2).uppercase() else "CV",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -164,16 +168,16 @@ fun ProfileScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = profile.fullName,
+                                text = profile.fullName.ifBlank { "Job Seeker" },
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = profile.titleHeadline,
+                                text = profile.titleHeadline.ifBlank { "Add your job title / headline" },
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = EthioEmeraldPrimary
+                                color = if (profile.titleHeadline.isNotBlank()) EthioEmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                                 Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(13.dp))
@@ -210,7 +214,7 @@ fun ProfileScreen(
                             Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(13.dp), tint = EthioEmeraldDark)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = profile.phone, fontSize = 11.sp)
+                                Text(text = profile.phone.ifBlank { "Add Phone" }, fontSize = 11.sp)
                             }
                         }
                         Surface(
@@ -220,7 +224,7 @@ fun ProfileScreen(
                             Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(13.dp), tint = EthioEmeraldDark)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = profile.email, fontSize = 11.sp)
+                                Text(text = profile.email.ifBlank { "Add Email" }, fontSize = 11.sp)
                             }
                         }
                         if (profile.telegramHandle.isNotBlank()) {
@@ -267,6 +271,86 @@ fun ProfileScreen(
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(text = "Preview & Share Full CV Document", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Quick Management Row: Edit CV Details & Clear to Blank
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.setShowEditProfile(true) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).testTag("edit_cv_action_btn")
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Edit Profile", fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showResetConfirmDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = EthioCrimsonTertiary),
+                            modifier = Modifier.weight(1f).testTag("clear_cv_action_btn")
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = EthioCrimsonTertiary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Clear to Blank", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Helpful guide banner when CV completeness is low (< 50%)
+        if (profile.completionPercentage < 50) {
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = EthioGoldSecondary.copy(alpha = 0.12f)),
+                    border = BorderStroke(1.dp, EthioGoldDark.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth().testTag("cv_completion_tip_card")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(EthioGoldDark.copy(alpha = 0.2f))
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = EthioGoldDark, modifier = Modifier.size(18.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Fill Your Ethiopian CV",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = EthioGoldDark
+                            )
+                            Text(
+                                text = "Your CV is fresh. Add your university degree, skills, and summary so recruiters can review your application.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Button(
+                            onClick = { viewModel.setShowEditProfile(true) },
+                            colors = ButtonDefaults.buttonColors(containerColor = EthioGoldDark),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("fill_cv_quick_btn")
+                        ) {
+                            Text("Fill Now", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
                 }
             }
@@ -324,34 +408,42 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        profile.skills.forEach { skill ->
-                            Surface(
-                                color = EthioEmeraldPrimary.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                    if (profile.skills.isEmpty()) {
+                        Text(
+                            text = "No skills added to your CV yet. Click 'Add Skill' to choose from popular Ethiopian skills (Kotlin, Telebirr API, Accounting, etc.).",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            profile.skills.forEach { skill ->
+                                Surface(
+                                    color = EthioEmeraldPrimary.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(8.dp)
                                 ) {
-                                    Text(
-                                        text = skill,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = EthioEmeraldDark
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Remove skill",
-                                        tint = EthioEmeraldDark.copy(alpha = 0.7f),
-                                        modifier = Modifier
-                                            .size(14.dp)
-                                            .clickable { viewModel.removeSkill(skill) }
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = skill,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = EthioEmeraldDark
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove skill",
+                                            tint = EthioEmeraldDark.copy(alpha = 0.7f),
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .clickable { viewModel.removeSkill(skill) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -454,25 +546,73 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Education & Degrees", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = EthioEmeraldDark)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Education & Degrees (${profile.educationList.size})",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = EthioEmeraldDark
+                        )
+                        OutlinedButton(
+                            onClick = { showAddEducationDialog = true },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("add_edu_btn")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("Add Degree", fontSize = 11.sp)
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    profile.educationList.forEach { edu ->
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(EthioGoldSecondary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
+                    if (profile.educationList.isEmpty()) {
+                        Text(
+                            text = "No education records listed yet. Add your university, college, or TVET institute to complete your Ethiopian CV.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        profile.educationList.forEachIndexed { index, edu ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.School, contentDescription = null, tint = EthioGoldDark, modifier = Modifier.size(20.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(EthioGoldSecondary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.School, contentDescription = null, tint = EthioGoldDark, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = edu.degree, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = if (edu.fieldOfStudy.isNotBlank()) "${edu.fieldOfStudy} • ${edu.institution}" else edu.institution,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(text = "${edu.startYear} - ${edu.endYear}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(
+                                    onClick = { viewModel.deleteEducation(edu.id) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                                }
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(text = edu.degree, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Text(text = edu.institution, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(text = "${edu.startYear} - ${edu.endYear}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (index < profile.educationList.size - 1) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                Spacer(modifier = Modifier.height(10.dp))
                             }
                         }
                     }
@@ -554,6 +694,45 @@ fun ProfileScreen(
         CvPreviewDialog(
             profile = profile,
             onDismiss = { viewModel.setShowCvPreview(false) }
+        )
+    }
+
+    // Add Education Dialog
+    if (showAddEducationDialog) {
+        AddEducationDialog(
+            onDismiss = { showAddEducationDialog = false },
+            onAdd = { edu ->
+                viewModel.addEducation(edu)
+                showAddEducationDialog = false
+            }
+        )
+    }
+
+    // Reset CV Confirmation Dialog
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            title = { Text("Clear CV to Blank?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("This will clear skills, experience, and education from your profile so you can fill your CV completely from scratch. Your account name, email, and phone will remain intact.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearJobSeekerCv()
+                        showResetConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EthioCrimsonTertiary),
+                    modifier = Modifier.testTag("confirm_clear_cv_btn")
+                ) {
+                    Text("Clear All Details")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showResetConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }
@@ -680,6 +859,168 @@ fun AddExperienceDialog(
                 modifier = Modifier.testTag("save_exp_btn")
             ) {
                 Text("Save")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AddEducationDialog(
+    onDismiss: () -> Unit,
+    onAdd: (EducationItem) -> Unit
+) {
+    var degree by remember { mutableStateOf("") }
+    var fieldOfStudy by remember { mutableStateOf("") }
+    var institution by remember { mutableStateOf("Addis Ababa University (AAU)") }
+    var startYear by remember { mutableStateOf("2020") }
+    var endYear by remember { mutableStateOf("2024") }
+
+    val popularInstitutions = listOf(
+        "Addis Ababa University (AAU)",
+        "ASTU (Adama)",
+        "Hawassa University",
+        "Jimma University",
+        "Bahir Dar University",
+        "HilCoE",
+        "Unity University"
+    )
+
+    val popularDegrees = listOf(
+        "B.Sc. in Computer Science",
+        "B.Sc. in Software Engineering",
+        "B.A. in Accounting & Finance",
+        "B.A. in Management",
+        "B.Sc. in Electrical Engineering",
+        "Diploma / TVET"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Education to CV", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = degree,
+                    onValueChange = { degree = it },
+                    label = { Text("Degree / Certification") },
+                    placeholder = { Text("e.g. B.Sc. in Computer Science") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("edu_degree_input")
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(text = "Quick Select:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(4.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    popularDegrees.forEach { deg ->
+                        Surface(
+                            color = EthioEmeraldPrimary.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.clickable { degree = deg }
+                        ) {
+                            Text(
+                                text = deg,
+                                fontSize = 10.sp,
+                                color = EthioEmeraldDark,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = institution,
+                    onValueChange = { institution = it },
+                    label = { Text("University / Institution") },
+                    placeholder = { Text("e.g. Addis Ababa University (AAU)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("edu_institution_input")
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    popularInstitutions.forEach { inst ->
+                        Surface(
+                            color = EthioGoldSecondary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.clickable { institution = inst }
+                        ) {
+                            Text(
+                                text = inst,
+                                fontSize = 10.sp,
+                                color = EthioGoldDark,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = fieldOfStudy,
+                    onValueChange = { fieldOfStudy = it },
+                    label = { Text("Field of Study / Department (Optional)") },
+                    placeholder = { Text("e.g. Software Engineering") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = startYear,
+                        onValueChange = { startYear = it },
+                        label = { Text("Start Year") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = endYear,
+                        onValueChange = { endYear = it },
+                        label = { Text("End Year") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (degree.isNotBlank() && institution.isNotBlank()) {
+                        onAdd(
+                            EducationItem(
+                                id = "edu_${System.currentTimeMillis()}",
+                                degree = degree,
+                                fieldOfStudy = fieldOfStudy,
+                                institution = institution,
+                                startYear = startYear,
+                                endYear = endYear
+                            )
+                        )
+                    }
+                },
+                enabled = degree.isNotBlank() && institution.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = EthioEmeraldPrimary),
+                modifier = Modifier.testTag("save_edu_btn")
+            ) {
+                Text("Save Degree")
             }
         },
         dismissButton = {

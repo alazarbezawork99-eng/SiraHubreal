@@ -27,8 +27,10 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.BusinessCenter
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material.icons.filled.Refresh
@@ -82,6 +84,7 @@ import com.example.ui.theme.EthioEmeraldDark
 import com.example.ui.theme.EthioEmeraldPrimary
 import com.example.ui.theme.EthioGoldDark
 import com.example.ui.theme.EthioGoldSecondary
+import com.example.ui.theme.SiraBackgroundDark
 
 
 data class NavItem(
@@ -187,6 +190,7 @@ fun MainScreen(viewModel: SiraViewModel) {
                     onOpenSettings = { viewModel.openSettingsScreen() },
                     onOpenAuth = { viewModel.openAuthDialog(com.example.model.AuthMode.LOGIN) },
                     onOpenWelcome = { viewModel.openWelcomeScreen() },
+                    onToggleTheme = { viewModel.toggleTheme() },
                     isSupabaseConnected = viewModel.supabaseManager.isConfigured,
                     isSyncing = isSyncing,
                     onQuickSync = { viewModel.syncWithSupabase(showSnackbar = true) }
@@ -252,7 +256,7 @@ fun MainScreen(viewModel: SiraViewModel) {
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = activeColor,
-                                selectedTextColor = activeDarkColor,
+                                selectedTextColor = activeColor,
                                 indicatorColor = activeColor.copy(alpha = 0.15f),
                                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -317,6 +321,7 @@ fun SiraTopAppBar(
     onOpenSettings: () -> Unit,
     onOpenAuth: () -> Unit,
     onOpenWelcome: () -> Unit = {},
+    onToggleTheme: () -> Unit = {},
     isSupabaseConnected: Boolean,
     isSyncing: Boolean = false,
     onQuickSync: () -> Unit = {}
@@ -339,13 +344,14 @@ fun SiraTopAppBar(
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             // Brand Title + Amharic Emblem
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -452,6 +458,20 @@ fun SiraTopAppBar(
                     )
                 }
 
+                // Quick Theme Toggle Button (Dark / Light)
+                val isDark = MaterialTheme.colorScheme.background == SiraBackgroundDark
+                IconButton(
+                    onClick = onToggleTheme,
+                    modifier = Modifier.size(32.dp).testTag("top_theme_toggle_btn")
+                ) {
+                    Icon(
+                        imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        contentDescription = if (isDark) "Switch to Light Theme" else "Switch to Dark Theme",
+                        tint = if (isDark) EthioGoldSecondary else EthioEmeraldPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.width(2.dp))
 
                 // Account Type Switcher Pill Button
@@ -533,6 +553,22 @@ fun SiraTopAppBar(
                     }
                 }
             }
+
+            // Crisp Ethiopian tri-color energy strip along bottom of top bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.5.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF009A44),
+                                Color(0xFFFED100),
+                                Color(0xFFEF3340)
+                            )
+                        )
+                    )
+            )
         }
     }
 }

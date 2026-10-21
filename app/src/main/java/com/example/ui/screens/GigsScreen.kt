@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -79,6 +81,7 @@ import com.example.ui.theme.EthioEmeraldDark
 import com.example.ui.theme.EthioEmeraldPrimary
 import com.example.ui.theme.EthioGoldDark
 import com.example.ui.theme.EthioGoldSecondary
+import com.example.ui.theme.SiraBackgroundDark
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -107,6 +110,64 @@ fun GigsScreen(
         // Gigs Banner
         item {
             GigsBannerCard(onPostGigClick = { viewModel.setTab(2) })
+        }
+
+        // Freelance & Tasks Pulse Highlights Bar
+        item {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = EthioGoldSecondary.copy(alpha = 0.15f),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("⚡", fontSize = 12.sp)
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "Freelance & Quick Tasks",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Direct Birr escrow • Addis Ababa & nationwide tasks",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = EthioGoldSecondary.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "INSTANT",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = EthioGoldSecondary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
         }
 
         // Search Bar
@@ -264,14 +325,25 @@ fun GigsBannerCard(onPostGigClick: () -> Unit) {
             .padding(16.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
+        val isDark = MaterialTheme.colorScheme.background == SiraBackgroundDark
+        val gradientColors = if (isDark) {
+            listOf(Color(0xFF241D12), Color(0xFF1B150C))
+        } else {
+            listOf(Color(0xFFFAF5EC), Color(0xFFF3EADB))
+        }
+        val titleColor = if (isDark) Color(0xFFFDE68A) else Color(0xFF6B4412)
+        val bodyColor = if (isDark) Color(0xFFD4AF37) else Color(0xFF8C5819)
+        val payInEtbColor = if (isDark) Color(0xFFFBBF24) else EthioGoldDark
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     androidx.compose.ui.graphics.Brush.linearGradient(
-                        colors = listOf(Color(0xFFFFFBEB), Color(0xFFFEF3C7))
+                        colors = gradientColors
                     )
                 )
                 .padding(18.dp)
@@ -297,7 +369,7 @@ fun GigsBannerCard(onPostGigClick: () -> Unit) {
                     text = "ክፍያ በብር / Pay in ETB",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = EthioGoldDark
+                    color = payInEtbColor
                 )
             }
 
@@ -307,13 +379,13 @@ fun GigsBannerCard(onPostGigClick: () -> Unit) {
                 text = "Bid on Gigs or Post a Quick Task",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF78350F)
+                color = titleColor
             )
 
             Text(
                 text = "Translation, design, IT, tutoring, and errands across Ethiopia. Flexible projects with quick turnaround.",
                 fontSize = 12.sp,
-                color = Color(0xFF92400E),
+                color = bodyColor,
                 lineHeight = 17.sp,
                 modifier = Modifier.padding(top = 4.dp)
             )
@@ -351,7 +423,8 @@ fun GigCardItem(
             .testTag("gig_card_${gig.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header Row: Client Name + Category + Bookmark
@@ -363,7 +436,8 @@ fun GigCardItem(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(EthioGoldSecondary.copy(alpha = 0.15f)),
+                        .background(EthioGoldSecondary.copy(alpha = 0.15f))
+                        .border(1.dp, EthioGoldSecondary.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

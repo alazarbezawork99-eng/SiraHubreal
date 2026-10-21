@@ -10,6 +10,7 @@ import com.example.model.ApplicationStatus
 import com.example.model.AuthMode
 import com.example.model.AuthUser
 import com.example.model.CompanyProfile
+import com.example.model.EducationItem
 import com.example.model.EmploymentType
 import com.example.model.ExperienceItem
 import com.example.model.ExperienceLevel
@@ -483,6 +484,30 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         repository.updateProfile(updated)
     }
 
+    fun clearJobSeekerCv() {
+        val user = currentUser.value
+        val fresh = UserProfile(
+            id = user?.id ?: "user_default",
+            fullName = user?.fullName ?: "",
+            email = user?.email ?: "",
+            phone = user?.phone ?: "",
+            titleHeadline = "",
+            bioSummary = "",
+            telegramHandle = "",
+            cityLocation = "Addis Ababa, Ethiopia",
+            skills = emptyList(),
+            languages = listOf("Amharic", "English"),
+            educationList = emptyList(),
+            experienceList = emptyList(),
+            portfolioLinks = emptyList(),
+            expectedSalaryMinETB = 0,
+            availabilityStatus = "Actively seeking opportunities",
+            resumeUploadedDate = "Not uploaded yet"
+        )
+        repository.updateProfile(fresh)
+        _snackbarMessage.value = "CV cleared. You can now fill your own CV from scratch!"
+    }
+
     // Supabase actions
     fun saveSupabaseConfig(url: String, key: String) {
         supabaseManager.supabaseUrl = url
@@ -602,6 +627,36 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSettings(newSettings: AppSettings) {
         repository.updateSettings(newSettings)
         _snackbarMessage.value = "App preferences saved"
+    }
+
+    fun toggleTheme() {
+        val current = appSettings.value
+        val isCurrentlyDark = when (current.themeMode.uppercase()) {
+            "LIGHT" -> false
+            "DARK" -> true
+            else -> current.darkThemeEnabled
+        }
+        val newMode = if (isCurrentlyDark) "LIGHT" else "DARK"
+        val updated = current.copy(
+            themeMode = newMode,
+            darkThemeEnabled = (newMode == "DARK")
+        )
+        repository.updateSettings(updated)
+        _snackbarMessage.value = if (newMode == "DARK") "Dark theme active" else "Clean light theme active"
+    }
+
+    fun setThemeMode(mode: String) {
+        val normalized = mode.uppercase()
+        val updated = appSettings.value.copy(
+            themeMode = normalized,
+            darkThemeEnabled = (normalized == "DARK")
+        )
+        repository.updateSettings(updated)
+        _snackbarMessage.value = when (normalized) {
+            "LIGHT" -> "Clean light theme active"
+            "DARK" -> "Dark theme active"
+            else -> "System theme active"
+        }
     }
 
     fun clearCacheAndReset() {
