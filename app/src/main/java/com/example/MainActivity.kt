@@ -11,7 +11,9 @@ import androidx.compose.runtime.getValue
 import com.example.ui.MainScreen
 import com.example.ui.SiraViewModel
 import com.example.ui.theme.MyApplicationTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val viewModel: SiraViewModel by viewModels()

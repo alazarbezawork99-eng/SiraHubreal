@@ -1,17 +1,18 @@
 package com.example.model
 
 data class AuthUser(
-    val id: String = "user_default_1",
-    val email: String = "abebe.kebede.dev@gmail.com",
-    val fullName: String = "Abebe Kebede",
-    val phone: String = "+251 91 123 4567",
+    val id: String = "",
+    val email: String = "",
+    val fullName: String = "",
+    val phone: String = "",
     val accountType: AccountType = AccountType.JOB_SEEKER,
     val companyName: String = "",
     val companyIndustry: String = "",
     val companyLocation: String = "Addis Ababa, Ethiopia",
-    val headline: String = "Senior Mobile & Backend Engineer",
+    val headline: String = "",
     val isLoggedIn: Boolean = false,
-    val registeredDate: String = "October 2024"
+    val isEmailVerified: Boolean = false,
+    val registeredDate: String = ""
 ) {
     val isGuest: Boolean
         get() = !isLoggedIn
@@ -37,7 +38,6 @@ data class AppSettings(
     val notificationsEnabled: Boolean = true,
     val jobAlertsEnabled: Boolean = true,
     val bidAlertsEnabled: Boolean = true,
-    val autoSyncSupabase: Boolean = true,
     val darkThemeEnabled: Boolean = true,
     val themeMode: String = "DARK", // "DARK", "LIGHT", "SYSTEM"
     val currency: String = "ETB"

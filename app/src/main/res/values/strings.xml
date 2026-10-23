@@ -6,4 +6,52 @@
     <string name="tab_post">Post</string>
     <string name="tab_activity">My Activity</string>
     <string name="tab_profile">CV &amp; Profile</string>
+
+    <!-- Generic data-layer errors. Every repository failure maps to one of these. -->
+    <string name="error_network">No internet connection. Please check your network and try again.</string>
+    <string name="error_auth_expired">Your session has expired. Please sign in again.</string>
+    <string name="error_validation_failed">Some of the details you entered are not valid. Please check them and try again.</string>
+    <string name="error_server">Something went wrong on our side. Please try again in a moment.</string>
+    <string name="error_not_configured">SiraHub is not connected to its server yet. Please check the app configuration.</string>
+    <string name="error_unexpected">Something went wrong. Please try again.</string>
+    <string name="error_offline_showing_cache">You are offline. Showing the last data saved on this device.</string>
+
+    <!-- Empty states. These are shown when the server successfully returned nothing. -->
+    <string name="empty_jobs">No jobs are available right now. Please check back soon.</string>
+    <string name="empty_gigs">No gigs are available right now. Please check back soon.</string>
+    <string name="empty_applications">You have not applied to any jobs yet.</string>
+    <string name="empty_bids">You have not placed any bids yet.</string>
+    <string name="empty_bookmarks">You have not saved anything yet.</string>
+    <string name="empty_applicants">No one has applied to your jobs yet.</string>
+
+    <!-- Retry affordance -->
+    <string name="action_retry">Try again</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_cancel">Cancel</string>
+
+    <!-- Server-side rule violations, surfaced instead of a generic validation message. -->
+    <string name="error_company_not_verified">Your company is not verified yet. Only verified companies can publish job openings. Please complete verification and try again.</string>
+    <string name="error_duplicate_application">You have already applied to this job.</string>
+    <string name="error_duplicate_bid">You have already placed a bid on this gig.</string>
+    <string name="error_job_closed">This job is no longer accepting applications.</string>
+    <string name="error_gig_closed">This gig is no longer accepting bids.</string>
+
+    <!-- Per-field validation messages. Shown directly under the offending input. -->
+    <string name="field_required">This field is required.</string>
+    <string name="field_required_select">Please choose an option.</string>
+    <string name="field_title_too_short">Please enter at least 3 characters.</string>
+    <string name="field_description_too_short">Please write at least 10 characters so candidates know what to expect.</string>
+    <string name="field_location_required">Please enter where this role is based.</string>
+    <string name="field_company_required">Please enter your company or organisation name.</string>
+    <string name="field_salary_invalid">Enter a number, or leave blank for negotiable.</string>
+    <string name="field_salary_range_invalid">The minimum salary cannot be higher than the maximum.</string>
+    <string name="field_email_invalid">Please enter a valid email address.</string>
+    <string name="field_phone_invalid">Please enter a valid Ethiopian phone number.</string>
+    <string name="field_budget_invalid">Please enter a budget greater than zero.</string>
+    <string name="field_delivery_invalid">Please enter the number of days this will take.</string>
+    <string name="field_full_name_required">Please enter your full name.</string>
+    <string name="field_password_too_short">Password must be at least 8 characters.</string>
+
+    <!-- Summary shown when a submit is blocked by field validation. -->
+    <string name="error_fix_highlighted_fields">Please fix the highlighted fields.</string>
 </resources>

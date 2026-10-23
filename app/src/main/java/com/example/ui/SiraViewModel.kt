@@ -3,7 +3,14 @@ package com.example.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.R
+import com.example.data.AuthActionResult
 import com.example.data.SiraRepository
+import com.example.data.SyncResult
+import com.example.data.core.DataResult
+import com.example.data.repository.JobsRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import com.example.model.AccountType
 import com.example.model.AppSettings
 import com.example.model.ApplicationStatus
@@ -27,16 +34,27 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-class SiraViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class SiraViewModel @Inject constructor(
+    application: Application,
+    private val jobsRepository: JobsRepository
+) : AndroidViewModel(application) {
 
+    // Still the legacy store for gigs, applications, bids, profile, company and bookmarks.
+    // Jobs have moved to JobsRepository; this class is deleted once every domain has migrated.
     private val repository = SiraRepository(application.applicationContext)
 
-    val jobs = repository.jobs
+    /** Live jobs from the Room cache, maintained by [JobsRepository]. */
+    val jobs: StateFlow<List<JobPost>> = jobsRepository
+        .observeJobs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val gigs = repository.gigs
     val profile = repository.profile
     val companyProfile = repository.companyProfile
@@ -52,9 +70,15 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
     val currentUser: StateFlow<AuthUser?> = repository.currentUser
     val appSettings: StateFlow<AppSettings> = repository.appSettings
 
-    // Account Type: Job Seeker vs Company / Employer vs Gig Poster
-    private val _accountType = MutableStateFlow(repository.currentUser.value?.accountType ?: AccountType.JOB_SEEKER)
-    val accountType: StateFlow<AccountType> = _accountType.asStateFlow()
+    // Account Type is owned by the server (profiles.account_type) and mirrored from the
+    // signed-in session. It is derived from currentUser only - there is no local override.
+    val accountType: StateFlow<AccountType> = repository.currentUser
+        .map { it?.accountType ?: AccountType.JOB_SEEKER }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = repository.currentUser.value?.accountType ?: AccountType.JOB_SEEKER
+        )
 
     // Auth Dialog & Settings Modal States
     private val _showAuthDialog = MutableStateFlow(false)
@@ -71,18 +95,6 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         !repository.hasSeenWelcome() || (repository.currentUser.value?.isLoggedIn != true)
     )
     val showWelcomeScreen: StateFlow<Boolean> = _showWelcomeScreen.asStateFlow()
-
-    init {
-        // Keep active role aligned with currentUser role
-        viewModelScope.launch {
-            repository.currentUser.collect { user ->
-                if (user != null) {
-                    _accountType.value = user.accountType
-                }
-            }
-        }
-    }
-
 
     // Navigation & View State
     private val _currentTab = MutableStateFlow(0) // 0: Jobs, 1: Gigs, 2: Post, 3: Activity/Applicants, 4: Profile/Company
@@ -131,10 +143,6 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
     // Edit Company Profile Modal State
     private val _showEditCompanyProfile = MutableStateFlow(false)
     val showEditCompanyProfile: StateFlow<Boolean> = _showEditCompanyProfile.asStateFlow()
-
-    // Supabase Settings Modal State
-    private val _showSupabaseSettings = MutableStateFlow(false)
-    val showSupabaseSettings: StateFlow<Boolean> = _showSupabaseSettings.asStateFlow()
 
     // Company Applicant Dossier Review Modal
     private val _selectedApplicantForReview = MutableStateFlow<JobApplication?>(null)
@@ -200,13 +208,13 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // User posted listings
-    val userPostedJobs: StateFlow<List<JobPost>> = combine(jobs) { list ->
-        list[0].filter { it.isPostedByUser }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val userPostedJobs: StateFlow<List<JobPost>> = jobs
+        .map { allJobs -> allJobs.filter { it.isPostedByUser } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val userPostedGigs: StateFlow<List<GigPost>> = combine(gigs) { list ->
-        list[0].filter { it.isPostedByUser }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val userPostedGigs: StateFlow<List<GigPost>> = gigs
+        .map { allGigs -> allGigs.filter { it.isPostedByUser } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Bookmarked items
     val bookmarkedJobs: StateFlow<List<JobPost>> = combine(jobs, bookmarkedJobIds) { allJobs, ids ->
@@ -220,19 +228,6 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
     // State Mutators
     fun setTab(index: Int) {
         _currentTab.value = index
-    }
-
-    fun setAccountType(type: AccountType) {
-        switchAccountRole(type)
-    }
-
-    fun toggleAccountType() {
-        val next = when (_accountType.value) {
-            AccountType.JOB_SEEKER -> AccountType.COMPANY_EMPLOYER
-            AccountType.COMPANY_EMPLOYER -> AccountType.GIG_CLIENT
-            AccountType.GIG_CLIENT -> AccountType.JOB_SEEKER
-        }
-        switchAccountRole(next)
     }
 
     fun setActivitySubTab(index: Int) {
@@ -305,10 +300,6 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         _showEditCompanyProfile.value = show
     }
 
-    fun setShowSupabaseSettings(show: Boolean) {
-        _showSupabaseSettings.value = show
-    }
-
     fun clearSnackbar() {
         _snackbarMessage.value = null
     }
@@ -361,7 +352,8 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         contactPhone: String
     ) {
         val newJob = JobPost(
-            id = "job_${UUID.randomUUID()}",
+            // Placeholder only: the server assigns the real uuid on insert. Nothing reads this id.
+            id = "",
             title = title,
             company = company,
             location = location,
@@ -385,9 +377,30 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
             contactPhone = contactPhone,
             isPostedByUser = true
         )
-        repository.addJob(newJob)
-        _snackbarMessage.value = "Job \"$title\" published successfully on SiraHub!"
-        _currentTab.value = 0 // Navigate to Jobs tab
+        viewModelScope.launch {
+            when (val result = jobsRepository.createJob(newJob)) {
+                is DataResult.Success -> {
+                    _snackbarMessage.value = "Job \"$title\" published successfully on SiraHub!"
+                    _currentTab.value = 0 // Navigate to Jobs tab
+                }
+
+                is DataResult.NetworkError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(R.string.error_network)
+
+                is DataResult.AuthError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(R.string.error_auth_expired)
+
+                is DataResult.ValidationError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(result.messageRes)
+
+                is DataResult.ServerError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(R.string.error_server)
+            }
+        }
     }
 
     // Post a Gig
@@ -408,8 +421,8 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         val newGig = GigPost(
             id = "gig_${UUID.randomUUID()}",
             title = title,
-            clientName = if (_accountType.value == AccountType.COMPANY_EMPLOYER) companyProfile.value.name else currentProf.fullName.ifBlank { "Client" },
-            clientType = if (_accountType.value == AccountType.COMPANY_EMPLOYER) "Corporate Employer" else "Individual Client",
+            clientName = if (currentUser.value?.accountType == AccountType.COMPANY_EMPLOYER) companyProfile.value.name else currentProf.fullName.ifBlank { "Client" },
+            clientType = if (currentUser.value?.accountType == AccountType.COMPANY_EMPLOYER) "Corporate Employer" else "Individual Client",
             location = currentProf.cityLocation.ifBlank { "Addis Ababa" },
             category = category,
             budgetETB = budgetETB,
@@ -508,28 +521,38 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         _snackbarMessage.value = "CV cleared. You can now fill your own CV from scratch!"
     }
 
-    // Supabase actions
-    fun saveSupabaseConfig(url: String, key: String) {
-        supabaseManager.supabaseUrl = url
-        supabaseManager.supabaseAnonKey = key
-        _snackbarMessage.value = "Supabase configuration saved! Starting cloud database sync..."
-        if (supabaseManager.isConfigured) {
-            syncWithSupabase(showSnackbar = true)
-        }
-    }
-
-    fun syncWithSupabase(showSnackbar: Boolean = true, onComplete: ((com.example.data.SyncResult) -> Unit)? = null) {
+    // Cloud database sync actions
+    //
+    // Jobs go through JobsRepository (Supabase -> Room -> Flow). Every other domain still goes
+    // through the legacy SiraRepository until it is migrated.
+    fun syncWithSupabase(showSnackbar: Boolean = true, onComplete: ((SyncResult) -> Unit)? = null) {
         viewModelScope.launch {
-            val result = repository.syncWithSupabase()
-            if (showSnackbar) {
-                _snackbarMessage.value = result.message
+            val jobsResult = jobsRepository.refresh()
+            val legacyResult = repository.syncWithSupabase()
+
+            val message = if (jobsResult is DataResult.Success) {
+                legacyResult.message
+            } else {
+                jobErrorMessage(jobsResult)
             }
-            onComplete?.invoke(result)
+
+            if (showSnackbar) {
+                _snackbarMessage.value = message
+            }
+            onComplete?.invoke(legacyResult)
         }
     }
 
-    suspend fun testSupabaseConnection(): Pair<Boolean, String> = withContext(Dispatchers.IO) {
-        supabaseManager.testConnection()
+    /** Turns a failed job refresh into a plain-language message the user can act on. */
+    private fun jobErrorMessage(result: DataResult<*>): String {
+        val context = getApplication<Application>()
+        return when (result) {
+            is DataResult.NetworkError -> context.getString(R.string.error_network)
+            is DataResult.AuthError -> context.getString(R.string.error_auth_expired)
+            is DataResult.ValidationError -> context.getString(result.messageRes)
+            is DataResult.ServerError -> context.getString(R.string.error_server)
+            is DataResult.Success -> ""
+        }
     }
 
     // ==========================================
@@ -571,19 +594,19 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         _snackbarMessage.value = "Browsing SiraHub in Guest Mode. Register or sign in anytime!"
     }
 
-    fun login(email: String, pass: String): Pair<Boolean, String> {
+    suspend fun login(email: String, pass: String): AuthActionResult {
         val res = repository.login(email, pass)
-        if (res.first) {
-            val role = repository.currentUser.value?.accountType ?: AccountType.JOB_SEEKER
-            _accountType.value = role
+        if (res.isSuccess) {
             _showAuthDialog.value = false
-            _showWelcomeScreen.value = false
-            _snackbarMessage.value = res.second
+            if (res.signedIn) {
+                _showWelcomeScreen.value = false
+            }
+            _snackbarMessage.value = res.message
         }
         return res
     }
 
-    fun register(
+    suspend fun register(
         fullName: String,
         email: String,
         pass: String,
@@ -591,37 +614,33 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
         accountType: AccountType,
         companyName: String = "",
         companyIndustry: String = ""
-    ): Pair<Boolean, String> {
-        val res = repository.register(fullName, email, pass, phone, accountType, companyName, companyIndustry)
-        if (res.first) {
-            _accountType.value = accountType
+    ): AuthActionResult {
+        val res = repository.register(
+            fullName = fullName,
+            email = email,
+            pass = pass,
+            phone = phone,
+            accountType = accountType,
+            companyName = companyName,
+            companyIndustry = companyIndustry
+        )
+        if (res.isSuccess) {
             _showAuthDialog.value = false
-            _showWelcomeScreen.value = false
-            _snackbarMessage.value = res.second
+            // Stay on the welcome/login screen when Supabase still requires email verification.
+            if (res.signedIn) {
+                _showWelcomeScreen.value = false
+            }
+            _snackbarMessage.value = res.message
         }
         return res
     }
 
-    fun logout() {
+    suspend fun logout() {
         repository.logout()
         _showSettingsScreen.value = false
         _showAuthDialog.value = false
         _showWelcomeScreen.value = true
         _snackbarMessage.value = "You have signed out from SiraHub"
-    }
-
-    fun quickDemoLogin(role: AccountType) {
-        repository.quickDemoLogin(role)
-        _accountType.value = role
-        _showAuthDialog.value = false
-        _showWelcomeScreen.value = false
-        _snackbarMessage.value = "Active profile set to demo ${role.label}"
-    }
-
-    fun switchAccountRole(role: AccountType) {
-        repository.switchAccountRole(role)
-        _accountType.value = role
-        _snackbarMessage.value = "Switched to ${role.label} Account (${role.amharicBadge})"
     }
 
     fun updateSettings(newSettings: AppSettings) {
@@ -661,7 +680,6 @@ class SiraViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearCacheAndReset() {
         repository.clearCacheAndReset()
-        _accountType.value = repository.currentUser.value?.accountType ?: AccountType.JOB_SEEKER
         _snackbarMessage.value = "App data and cache reset to default sample state"
     }
 }

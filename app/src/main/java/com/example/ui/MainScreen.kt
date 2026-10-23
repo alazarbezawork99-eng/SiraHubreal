@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,7 +36,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.WorkHistory
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AccountType
+import com.example.model.AuthMode
 import com.example.model.AuthUser
 import com.example.ui.components.EthiopianFlagEmblem
 import com.example.ui.screens.ActivityScreen
@@ -77,7 +78,6 @@ import com.example.ui.screens.JobsScreen
 import com.example.ui.screens.PostScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SettingsScreen
-import com.example.ui.screens.SupabaseSettingsDialog
 import com.example.ui.screens.WelcomeScreen
 import com.example.ui.theme.EthioCrimsonTertiary
 import com.example.ui.theme.EthioEmeraldDark
@@ -103,7 +103,6 @@ fun MainScreen(viewModel: SiraViewModel) {
     val applications by viewModel.applications.collectAsState()
     val companyApplicants by viewModel.companyApplicants.collectAsState()
     val bids by viewModel.bids.collectAsState()
-    val showSupabaseSettings by viewModel.showSupabaseSettings.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val showAuthDialog by viewModel.showAuthDialog.collectAsState()
     val showSettingsScreen by viewModel.showSettingsScreen.collectAsState()
@@ -185,13 +184,10 @@ fun MainScreen(viewModel: SiraViewModel) {
                 SiraTopAppBar(
                     accountType = accountType,
                     currentUser = currentUser,
-                    onToggleAccountType = { viewModel.toggleAccountType() },
-                    onOpenDatabaseSettings = { viewModel.setShowSupabaseSettings(true) },
                     onOpenSettings = { viewModel.openSettingsScreen() },
-                    onOpenAuth = { viewModel.openAuthDialog(com.example.model.AuthMode.LOGIN) },
+                    onOpenAuth = { viewModel.openAuthDialog(AuthMode.LOGIN) },
                     onOpenWelcome = { viewModel.openWelcomeScreen() },
                     onToggleTheme = { viewModel.toggleTheme() },
-                    isSupabaseConnected = viewModel.supabaseManager.isConfigured,
                     isSyncing = isSyncing,
                     onQuickSync = { viewModel.syncWithSupabase(showSnackbar = true) }
                 )
@@ -295,14 +291,6 @@ fun MainScreen(viewModel: SiraViewModel) {
         }
     }
 
-    // Supabase Cloud Database Dialog
-    if (showSupabaseSettings) {
-        SupabaseSettingsDialog(
-            viewModel = viewModel,
-            onDismiss = { viewModel.setShowSupabaseSettings(false) }
-        )
-    }
-
     // Registration and Login Dialog Modal
     if (showAuthDialog) {
         AuthDialog(
@@ -316,24 +304,16 @@ fun MainScreen(viewModel: SiraViewModel) {
 fun SiraTopAppBar(
     accountType: AccountType,
     currentUser: AuthUser?,
-    onToggleAccountType: () -> Unit,
-    onOpenDatabaseSettings: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAuth: () -> Unit,
     onOpenWelcome: () -> Unit = {},
     onToggleTheme: () -> Unit = {},
-    isSupabaseConnected: Boolean,
     isSyncing: Boolean = false,
     onQuickSync: () -> Unit = {}
 ) {
     val roleColor = when (accountType) {
         AccountType.JOB_SEEKER -> EthioEmeraldPrimary
         AccountType.COMPANY_EMPLOYER -> EthioGoldSecondary
-        AccountType.GIG_CLIENT -> EthioCrimsonTertiary
-    }
-    val roleDarkColor = when (accountType) {
-        AccountType.JOB_SEEKER -> EthioEmeraldDark
-        AccountType.COMPANY_EMPLOYER -> EthioGoldDark
         AccountType.GIG_CLIENT -> EthioCrimsonTertiary
     }
 
@@ -359,16 +339,22 @@ fun SiraTopAppBar(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        // Sized to the text rather than a fixed 34.dp square: Amharic badges such
+                        // as "ስራ ፈላጊ" do not fit, and wrapping stacked the glyphs vertically.
+                        .height(34.dp)
+                        .widthIn(min = 34.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(roleColor),
+                        .background(roleColor)
+                        .padding(horizontal = 7.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = accountType.amharicBadge,
-                        fontSize = if (accountType.amharicBadge.length > 2) 9.sp else 13.sp,
+                        fontSize = if (accountType.amharicBadge.length > 2) 11.sp else 13.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
                 Spacer(modifier = Modifier.width(7.dp))
@@ -396,51 +382,25 @@ fun SiraTopAppBar(
                 }
             }
 
-            // Right Actions: Cloud Icon + Settings Gear + Role Pill + User Avatar
+            // Right Actions: Sync Refresh + Settings Gear + Role Pill + User Avatar
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // If connected, show quick sync icon button
-                if (isSupabaseConnected) {
-                    IconButton(
-                        onClick = onQuickSync,
-                        enabled = !isSyncing,
-                        modifier = Modifier.size(30.dp).testTag("quick_sync_btn")
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                color = EthioEmeraldPrimary,
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Sync from Supabase",
-                                tint = EthioEmeraldPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Supabase Database Status Button
                 IconButton(
-                    onClick = onOpenDatabaseSettings,
-                    modifier = Modifier.size(32.dp).testTag("top_supabase_btn")
+                    onClick = onQuickSync,
+                    enabled = !isSyncing,
+                    modifier = Modifier.size(30.dp).testTag("quick_sync_btn")
                 ) {
-                    BadgedBox(
-                        badge = {
-                            Badge(
-                                containerColor = if (isSupabaseConnected) Color(0xFF16A34A) else Color(0xFFD97706)
-                            ) {
-                                Text(if (isSyncing) "..." else if (isSupabaseConnected) "DB✓" else "Setup", fontSize = 8.sp)
-                            }
-                        }
-                    ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            color = EthioEmeraldPrimary,
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
                         Icon(
-                            imageVector = Icons.Default.Cloud,
-                            contentDescription = "Supabase Database Settings",
-                            tint = if (isSupabaseConnected) EthioEmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh Data",
+                            tint = EthioEmeraldPrimary,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -470,37 +430,6 @@ fun SiraTopAppBar(
                         tint = if (isDark) EthioGoldSecondary else EthioEmeraldPrimary,
                         modifier = Modifier.size(18.dp)
                     )
-                }
-
-                Spacer(modifier = Modifier.width(2.dp))
-
-                // Account Type Switcher Pill Button
-                Surface(
-                    color = roleColor.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable(onClick = onToggleAccountType)
-                        .testTag("toggle_account_type_btn")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SwapHoriz,
-                            contentDescription = "Switch Account Type",
-                            tint = roleDarkColor,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = accountType.label.split("/")[0].trim(),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = roleDarkColor
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))
@@ -552,6 +481,7 @@ fun SiraTopAppBar(
                         )
                     }
                 }
+            }
             }
 
             // Crisp Ethiopian tri-color energy strip along bottom of top bar

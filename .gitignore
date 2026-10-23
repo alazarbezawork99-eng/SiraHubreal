@@ -2,6 +2,9 @@
 .gradle
 .kotlin
 /local.properties
+# IDE-local configuration. Not shared: it encodes this machine's SDK paths,
+# device list and inspection settings.
+/.idea
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml

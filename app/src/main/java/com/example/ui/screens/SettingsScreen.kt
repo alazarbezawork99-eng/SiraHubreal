@@ -27,8 +27,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BrightnessAuto
-import androidx.compose.material.icons.filled.Business
-import androidx.compose.material.icons.filled.BusinessCenter
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
@@ -38,7 +36,6 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
@@ -76,6 +73,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,7 +87,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.BackHandler
-import com.example.data.supabase.SupabaseManager
 import com.example.model.AccountType
 import com.example.model.AuthMode
 import com.example.ui.SiraViewModel
@@ -99,6 +96,7 @@ import com.example.ui.theme.EthioEmeraldDark
 import com.example.ui.theme.EthioEmeraldPrimary
 import com.example.ui.theme.EthioGoldDark
 import com.example.ui.theme.EthioGoldSecondary
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,11 +114,11 @@ fun SettingsScreen(
     val currentUser by viewModel.currentUser.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
-    val isSupabaseConnected = viewModel.supabaseManager.isConfigured
+    val isCloudConnected = viewModel.supabaseManager.isConfigured
 
     var showResetDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
-    var showSqlSchemaDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = modifier
@@ -268,75 +266,6 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Role Switcher Segment
-                    Text(
-                        text = "Current Active Role: (Tap to switch mode instantly)",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        AccountType.values().forEach { role ->
-                            val isSelected = user?.accountType == role
-                            val roleColor = when (role) {
-                                AccountType.JOB_SEEKER -> EthioEmeraldPrimary
-                                AccountType.COMPANY_EMPLOYER -> EthioGoldSecondary
-                                AccountType.GIG_CLIENT -> EthioCrimsonTertiary
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) roleColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        viewModel.switchAccountRole(role)
-                                    }
-                                    .testTag("switch_role_${role.name.lowercase()}")
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = when (role) {
-                                            AccountType.JOB_SEEKER -> Icons.Default.BusinessCenter
-                                            AccountType.COMPANY_EMPLOYER -> Icons.Default.Business
-                                            AccountType.GIG_CLIENT -> Icons.Default.FlashOn
-                                        },
-                                        contentDescription = null,
-                                        tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(3.dp))
-                                    Text(
-                                        text = role.amharicBadge,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = when (role) {
-                                            AccountType.JOB_SEEKER -> "Seeker"
-                                            AccountType.COMPANY_EMPLOYER -> "Employer"
-                                            AccountType.GIG_CLIENT -> "Gig Poster"
-                                        },
-                                        fontSize = 9.sp,
-                                        color = if (isSelected) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
                     // Account Actions: Register New | Sign In | Sign Out
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -396,10 +325,10 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             // ==========================================
-            // 2. SUPABASE CLOUD DATABASE SECTION
+            // 2. CLOUD DATA SYNC SECTION
             // ==========================================
             Text(
-                text = "Cloud Database Integration (Supabase)",
+                text = "Cloud Data Sync",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -420,21 +349,21 @@ fun SettingsScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isSupabaseConnected) Icons.Default.CloudDone else Icons.Default.Cloud,
+                                imageVector = if (isCloudConnected) Icons.Default.CloudDone else Icons.Default.Cloud,
                                 contentDescription = null,
-                                tint = if (isSupabaseConnected) EthioEmeraldPrimary else Color(0xFFD97706),
+                                tint = if (isCloudConnected) EthioEmeraldPrimary else Color(0xFFD97706),
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = if (isSupabaseConnected) "Supabase Connected" else "Cloud Sync Standby",
+                                    text = if (isCloudConnected) "Cloud Sync Connected" else "Cloud Sync Standby",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (isSupabaseConnected) "Real-time PostgreSQL sync active" else "Running in persistent local mode",
+                                    text = if (isCloudConnected) "Real-time cloud database sync active" else "Running in persistent local mode",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -442,14 +371,14 @@ fun SettingsScreen(
                         }
 
                         Surface(
-                            color = (if (isSupabaseConnected) Color(0xFF16A34A) else Color(0xFFD97706)).copy(alpha = 0.15f),
+                            color = (if (isCloudConnected) Color(0xFF16A34A) else Color(0xFFD97706)).copy(alpha = 0.15f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = if (isSupabaseConnected) "ONLINE" else "SETUP REQ",
+                                text = if (isCloudConnected) "ONLINE" else "OFFLINE",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSupabaseConnected) Color(0xFF16A34A) else Color(0xFFD97706),
+                                color = if (isCloudConnected) Color(0xFF16A34A) else Color(0xFFD97706),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
@@ -457,48 +386,20 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { viewModel.setShowSupabaseSettings(true) },
-                            colors = ButtonDefaults.buttonColors(containerColor = EthioEmeraldPrimary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).testTag("settings_open_supabase_dialog_btn")
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Configure DB", fontSize = 11.sp)
-                        }
-
-                        Button(
-                            onClick = { viewModel.syncWithSupabase(showSnackbar = true) },
-                            enabled = !isSyncing,
-                            colors = ButtonDefaults.buttonColors(containerColor = EthioGoldSecondary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).testTag("settings_sync_now_btn")
-                        ) {
-                            if (isSyncing) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Default.Refresh, contentDescription = null, tint = EthioGoldDark, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Sync Now", fontSize = 11.sp, color = EthioGoldDark, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedButton(
-                        onClick = { showSqlSchemaDialog = true },
+                    Button(
+                        onClick = { viewModel.syncWithSupabase(showSnackbar = true) },
+                        enabled = !isSyncing,
+                        colors = ButtonDefaults.buttonColors(containerColor = EthioGoldSecondary),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("settings_view_sql_btn")
+                        modifier = Modifier.fillMaxWidth().testTag("settings_sync_now_btn")
                     ) {
-                        Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("View & Copy Full Supabase SQL Schema", fontSize = 11.sp)
+                        if (isSyncing) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = EthioGoldDark, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Sync Data Now", fontSize = 11.sp, color = EthioGoldDark, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -816,9 +717,9 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.logout()
                         showLogoutDialog = false
                         onDismiss()
+                        scope.launch { viewModel.logout() }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
@@ -838,7 +739,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
             title = { Text("Reset to Initial Sample Data?") },
-            text = { Text("This will reset your local storage back to the original Ethiopian jobs, gigs, and profile samples. Supabase remote data (if connected) is preserved.") },
+            text = { Text("This will reset your local storage back to the original Ethiopian jobs, gigs, and profile samples.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -853,71 +754,6 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showResetDialog = false }) {
                     Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // SQL Schema Dialog
-    if (showSqlSchemaDialog) {
-        var copied by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = { showSqlSchemaDialog = false },
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Supabase PostgreSQL Schema", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    EthiopianFlagEmblem()
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = "Paste this SQL script into your Supabase SQL Editor to create all 6 tables (jobs, gigs, applications, bids, companies, profiles) and RLS security policies:",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = SupabaseManager.SQL_SETUP_SCRIPT,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(10.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("SiraHub Supabase SQL", SupabaseManager.SQL_SETUP_SCRIPT)
-                        clipboard.setPrimaryClip(clip)
-                        copied = true
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = EthioEmeraldPrimary)
-                ) {
-                    Icon(if (copied) Icons.Default.Check else Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (copied) "SQL Copied!" else "Copy SQL Schema")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSqlSchemaDialog = false }) {
-                    Text("Close")
                 }
             }
         )

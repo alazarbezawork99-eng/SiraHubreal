@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
@@ -51,18 +53,44 @@ import com.example.ui.theme.EthioGoldDark
 import com.example.ui.theme.EthioGoldSecondary
 import com.example.ui.theme.SiraBackgroundDark
 
+/**
+ * The Ethiopian flag: three horizontal bands (green, yellow, red from top to bottom) with a blue
+ * disc bearing a gold pentagram in the centre.
+ *
+ * Drawn with Compose primitives rather than an image so it stays crisp at every size and needs no
+ * density-specific asset. The bands are HORIZONTAL - a Row of coloured boxes would render the flag
+ * rotated 90 degrees.
+ */
 @Composable
 fun EthiopianFlagEmblem(modifier: Modifier = Modifier) {
-    // Elegant mini Ethiopian tri-color accent badge
-    Row(
+    val flagShape = RoundedCornerShape(3.dp)
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .height(18.dp)
-            .width(28.dp)
+            .size(width = 28.dp, height = 19.dp)
+            .clip(flagShape)
+            .background(Color(0xFFDA121A)),
+        contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.weight(1f).height(18.dp).background(Color(0xFF009A44)))
-        Box(modifier = Modifier.weight(1f).height(18.dp).background(Color(0xFFFED100)))
-        Box(modifier = Modifier.weight(1f).height(18.dp).background(Color(0xFFEF3340)))
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF078930)))
+            Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFFCDD09)))
+            Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFDA121A)))
+        }
+        // Blue disc with the gold pentagram, as on the national flag.
+        Box(
+            modifier = Modifier
+                .size(9.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF0F47AF)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = null,
+                tint = Color(0xFFFCDD09),
+                modifier = Modifier.size(6.dp)
+            )
+        }
     }
 }
 

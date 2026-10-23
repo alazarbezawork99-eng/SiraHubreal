@@ -64,6 +64,11 @@ import com.example.ui.theme.EthioEmeraldDark
 import com.example.ui.theme.EthioEmeraldPrimary
 import com.example.ui.theme.EthioGoldDark
 import com.example.ui.theme.EthioGoldSecondary
+import com.example.ui.validation.FieldContainer
+import com.example.ui.validation.FieldError
+import com.example.ui.validation.FormField
+import com.example.ui.validation.FormValidators
+import com.example.ui.validation.errorFor
 
 @Composable
 fun PostScreen(
@@ -203,6 +208,9 @@ fun PostJobForm(viewModel: SiraViewModel) {
     var selectedWorkplaceType by remember { mutableStateOf(WorkplaceType.HYBRID) }
     var selectedExperienceLevel by remember { mutableStateOf(ExperienceLevel.MID) }
 
+    // Populated on submit. Each entry highlights one field and explains what is wrong with it.
+    var fieldErrors by remember { mutableStateOf<List<FieldError>>(emptyList()) }
+
     val categories = listOf(
         "Tech & Software", "Banking & Finance", "NGO & Development",
         "Engineering & Construction", "Sales & Marketing", "Design & Creative", "Healthcare & Pharma"
@@ -223,33 +231,42 @@ fun PostJobForm(viewModel: SiraViewModel) {
             )
             Spacer(modifier = Modifier.height(14.dp))
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Job Title (e.g. Senior Mobile Developer)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("post_job_title_input")
-            )
+            FieldContainer(errorRes = fieldErrors.errorFor(FormField.JOB_TITLE)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Job Title (e.g. Senior Mobile Developer)") },
+                    singleLine = true,
+                    isError = fieldErrors.errorFor(FormField.JOB_TITLE) != null,
+                    modifier = Modifier.fillMaxWidth().testTag("post_job_title_input")
+                )
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            OutlinedTextField(
-                value = company,
-                onValueChange = { company = it },
-                label = { Text("Company / Organization Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("post_job_company_input")
-            )
+            FieldContainer(errorRes = fieldErrors.errorFor(FormField.JOB_COMPANY)) {
+                OutlinedTextField(
+                    value = company,
+                    onValueChange = { company = it },
+                    label = { Text("Company / Organization Name") },
+                    singleLine = true,
+                    isError = fieldErrors.errorFor(FormField.JOB_COMPANY) != null,
+                    modifier = Modifier.fillMaxWidth().testTag("post_job_company_input")
+                )
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            OutlinedTextField(
-                value = location,
-                onValueChange = { location = it },
-                label = { Text("Location (e.g. Addis Ababa - Bole, Hawassa, Remote)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("post_job_location_input")
-            )
+            FieldContainer(errorRes = fieldErrors.errorFor(FormField.JOB_LOCATION)) {
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text("Location (e.g. Addis Ababa - Bole, Hawassa, Remote)") },
+                    singleLine = true,
+                    isError = fieldErrors.errorFor(FormField.JOB_LOCATION) != null,
+                    modifier = Modifier.fillMaxWidth().testTag("post_job_location_input")
+                )
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -264,6 +281,7 @@ fun PostJobForm(viewModel: SiraViewModel) {
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Industry Category") },
+                    isError = fieldErrors.errorFor(FormField.JOB_CATEGORY) != null,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
                     modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
                 )
@@ -289,33 +307,48 @@ fun PostJobForm(viewModel: SiraViewModel) {
             Text(text = "Monthly Salary Range (ETB)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(6.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = salaryMinText,
-                    onValueChange = { salaryMinText = it.filter { c -> c.isDigit() } },
-                    label = { Text("Min (ETB)") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("post_job_min_salary_input")
-                )
-                OutlinedTextField(
-                    value = salaryMaxText,
-                    onValueChange = { salaryMaxText = it.filter { c -> c.isDigit() } },
-                    label = { Text("Max (ETB)") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("post_job_max_salary_input")
-                )
+                FieldContainer(
+                    errorRes = fieldErrors.errorFor(FormField.JOB_SALARY_MIN),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = salaryMinText,
+                        onValueChange = { salaryMinText = it.filter { c -> c.isDigit() } },
+                        label = { Text("Min (ETB)") },
+                        singleLine = true,
+                        isError = fieldErrors.errorFor(FormField.JOB_SALARY_MIN) != null,
+                        modifier = Modifier.fillMaxWidth().testTag("post_job_min_salary_input")
+                    )
+                }
+                FieldContainer(
+                    errorRes = fieldErrors.errorFor(FormField.JOB_SALARY_MAX),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = salaryMaxText,
+                        onValueChange = { salaryMaxText = it.filter { c -> c.isDigit() } },
+                        label = { Text("Max (ETB)") },
+                        singleLine = true,
+                        isError = fieldErrors.errorFor(FormField.JOB_SALARY_MAX) != null,
+                        modifier = Modifier.fillMaxWidth().testTag("post_job_max_salary_input")
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                label = { Text("Job Description & Scope") },
-                placeholder = { Text("Describe the day-to-day responsibilities, mission, and team...") },
-                minLines = 3,
-                maxLines = 6,
-                modifier = Modifier.fillMaxWidth().testTag("post_job_desc_input")
-            )
+            FieldContainer(errorRes = fieldErrors.errorFor(FormField.JOB_DESCRIPTION)) {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Job Description & Scope") },
+                    placeholder = { Text("Describe the day-to-day responsibilities, mission, and team...") },
+                    minLines = 3,
+                    maxLines = 6,
+                    isError = fieldErrors.errorFor(FormField.JOB_DESCRIPTION) != null,
+                    modifier = Modifier.fillMaxWidth().testTag("post_job_desc_input")
+                )
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -363,30 +396,41 @@ fun PostJobForm(viewModel: SiraViewModel) {
 
             Button(
                 onClick = {
-                    if (title.isNotBlank() && company.isNotBlank()) {
-                        val minSal = salaryMinText.toLongOrNull() ?: 30000L
-                        val maxSal = salaryMaxText.toLongOrNull() ?: 50000L
+                    // Validate every field before touching the network so the user is told exactly
+                    // which input is wrong, rather than getting a generic server error.
+                    val found = FormValidators.validateJobForm(
+                        title = title,
+                        company = company,
+                        location = location,
+                        category = category,
+                        description = description,
+                        salaryMinText = salaryMinText,
+                        salaryMaxText = salaryMaxText,
+                        contactEmail = contactEmail
+                    )
+                    fieldErrors = found
+
+                    if (found.isEmpty()) {
                         val reqs = requirementsText.lines().filter { it.isNotBlank() }
                         val bens = benefitsText.lines().filter { it.isNotBlank() }
                         viewModel.postCompanyJob(
-                            title = title,
-                            company = company,
-                            location = location,
+                            title = title.trim(),
+                            company = company.trim(),
+                            location = location.trim(),
                             category = category,
                             employmentType = selectedEmploymentType,
                             workplaceType = selectedWorkplaceType,
                             experienceLevel = selectedExperienceLevel,
-                            salaryMinETB = minSal,
-                            salaryMaxETB = maxSal,
-                            description = description.ifBlank { "Exciting opportunity to join $company in $location." },
-                            requirements = if (reqs.isNotEmpty()) reqs else listOf("Professional qualifications in $category"),
+                            salaryMinETB = salaryMinText.trim().toLongOrNull() ?: 0L,
+                            salaryMaxETB = salaryMaxText.trim().toLongOrNull() ?: 0L,
+                            description = description.trim(),
+                            requirements = reqs,
                             benefits = bens,
-                            contactEmail = contactEmail,
-                            contactPhone = contactPhone
+                            contactEmail = contactEmail.trim(),
+                            contactPhone = contactPhone.trim()
                         )
                     }
                 },
-                enabled = title.isNotBlank() && company.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = EthioEmeraldPrimary),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("publish_job_btn")

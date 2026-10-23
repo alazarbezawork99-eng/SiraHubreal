@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Visibility
@@ -36,10 +37,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
@@ -56,6 +57,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,10 +77,9 @@ import com.example.model.AuthMode
 import com.example.ui.SiraViewModel
 import com.example.ui.components.EthiopianFlagEmblem
 import com.example.ui.theme.EthioCrimsonTertiary
-import com.example.ui.theme.EthioEmeraldDark
 import com.example.ui.theme.EthioEmeraldPrimary
-import com.example.ui.theme.EthioGoldDark
 import com.example.ui.theme.EthioGoldSecondary
+import kotlinx.coroutines.launch
 
 @Composable
 fun AuthDialog(
@@ -235,6 +236,8 @@ private fun RegistrationForm(
     var companyIndustry by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Step 1: Who are you? Role Picker Cards
@@ -425,21 +428,35 @@ private fun RegistrationForm(
         // Submit Button
         Button(
             onClick = {
-                val res = viewModel.register(
-                    fullName = fullName,
-                    email = email,
-                    pass = password,
-                    phone = phone,
-                    accountType = selectedRole,
-                    companyName = companyName,
-                    companyIndustry = companyIndustry
-                )
-                if (res.first) {
-                    onSuccess()
-                } else {
-                    errorMessage = res.second
+                if (password.length < 8) {
+                    errorMessage = "Password must be at least 8 characters"
+                    return@Button
+                }
+                if ((selectedRole == AccountType.COMPANY_EMPLOYER || selectedRole == AccountType.GIG_CLIENT) && companyName.isBlank()) {
+                    errorMessage = "Please enter your organization or business name"
+                    return@Button
+                }
+
+                isSubmitting = true
+                scope.launch {
+                    val res = viewModel.register(
+                        fullName = fullName,
+                        email = email,
+                        pass = password,
+                        phone = phone,
+                        accountType = selectedRole,
+                        companyName = companyName,
+                        companyIndustry = companyIndustry
+                    )
+                    isSubmitting = false
+                    if (res.isSuccess) {
+                        onSuccess()
+                    } else {
+                        errorMessage = res.message
+                    }
                 }
             },
+            enabled = !isSubmitting,
             colors = ButtonDefaults.buttonColors(containerColor = EthioEmeraldPrimary),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
@@ -447,9 +464,13 @@ private fun RegistrationForm(
                 .height(48.dp)
                 .testTag("submit_registration_btn")
         ) {
-            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Complete Registration (ተመዝገብ)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            if (isSubmitting) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Complete Registration (ተመዝገብ)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -478,6 +499,8 @@ private fun LoginForm(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -544,13 +567,23 @@ private fun LoginForm(
         // Sign In Button
         Button(
             onClick = {
-                val res = viewModel.login(email, password)
-                if (res.first) {
-                    onSuccess()
-                } else {
-                    errorMessage = res.second
+                if (password.length < 8) {
+                    errorMessage = "Password must be at least 8 characters"
+                    return@Button
+                }
+
+                isSubmitting = true
+                scope.launch {
+                    val res = viewModel.login(email, password)
+                    isSubmitting = false
+                    if (res.isSuccess) {
+                        onSuccess()
+                    } else {
+                        errorMessage = res.message
+                    }
                 }
             },
+            enabled = !isSubmitting,
             colors = ButtonDefaults.buttonColors(containerColor = EthioEmeraldPrimary),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
@@ -558,74 +591,12 @@ private fun LoginForm(
                 .height(48.dp)
                 .testTag("submit_login_btn")
         ) {
-            Text("Sign In (ግባ)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Quick Demo Accounts Section
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    text = "Quick Demo Profiles (Instant One-Tap Testing)",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Tap any role to immediately test the platform from that perspective:",
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Demo 1: Job Seeker
-                OutlinedButton(
-                    onClick = {
-                        viewModel.quickDemoLogin(AccountType.JOB_SEEKER)
-                        onSuccess()
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp).testTag("demo_login_seeker_btn")
-                ) {
-                    Icon(Icons.Default.BusinessCenter, contentDescription = null, tint = EthioEmeraldPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Abebe Kebede (Job Seeker / Full CV)", fontSize = 12.sp, color = EthioEmeraldDark, fontWeight = FontWeight.SemiBold)
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Demo 2: Company Employer
-                OutlinedButton(
-                    onClick = {
-                        viewModel.quickDemoLogin(AccountType.COMPANY_EMPLOYER)
-                        onSuccess()
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp).testTag("demo_login_company_btn")
-                ) {
-                    Icon(Icons.Default.Business, contentDescription = null, tint = EthioGoldSecondary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("EthioFintech Labs (Company Employer)", fontSize = 12.sp, color = EthioGoldDark, fontWeight = FontWeight.SemiBold)
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Demo 3: Gig Client
-                OutlinedButton(
-                    onClick = {
-                        viewModel.quickDemoLogin(AccountType.GIG_CLIENT)
-                        onSuccess()
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp).testTag("demo_login_gig_btn")
-                ) {
-                    Icon(Icons.Default.FlashOn, contentDescription = null, tint = EthioCrimsonTertiary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Selamawit Tadesse (Freelance Gig Client)", fontSize = 12.sp, color = EthioCrimsonTertiary, fontWeight = FontWeight.SemiBold)
-                }
+            if (isSubmitting) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
 

@@ -7,17 +7,17 @@ enum class AccountType(val label: String, val subtitle: String, val amharicBadge
 }
 
 data class CompanyProfile(
-    val id: String = "comp_default_1",
-    val name: String = "EthioFintech & Tech Labs",
-    val industry: String = "Technology & Financial Services",
-    val location: String = "Addis Ababa (Bole Atlas), Ethiopia",
-    val website: String = "https://ethiofintech.et",
-    val contactEmail: String = "recruitment@ethiofintech.et",
-    val contactPhone: String = "+251 91 144 5566",
-    val description: String = "Leading Ethiopian digital finance and software consultancy specializing in enterprise payment infrastructure, mobile banking, and Telebirr integrations.",
-    val isVerified: Boolean = true,
-    val employeesCount: String = "50-100 Employees",
-    val foundedYear: String = "2020"
+    val id: String = "",
+    val name: String = "",
+    val industry: String = "",
+    val location: String = "",
+    val website: String = "",
+    val contactEmail: String = "",
+    val contactPhone: String = "",
+    val description: String = "",
+    val isVerified: Boolean = false,
+    val employeesCount: String = "",
+    val foundedYear: String = ""
 )
 
 data class CompanyApplicantReview(

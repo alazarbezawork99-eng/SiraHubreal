@@ -3,6 +3,7 @@ package com.example.data.supabase
 import android.content.Context
 import android.util.Log
 import com.example.BuildConfig
+import com.example.model.AccountType
 import com.example.model.ApplicationStatus
 import com.example.model.AuthUser
 import com.example.model.BidStatus
@@ -42,52 +43,14 @@ class SupabaseClientConfig private constructor(context: Context) {
     /**
      * Raw credentials resolved from .env via BuildConfig
      */
-    val envSupabaseUrl: String = try {
-        BuildConfig.SUPABASE_URL.trim()
-    } catch (e: Exception) {
-        ""
-    }
+    val activeSupabaseUrl: String
+        get() = BuildConfig.SUPABASE_URL.trim()
+            .removeSuffix("/rest/v1/")
+            .removeSuffix("/rest/v1")
+            .trimEnd('/')
 
-    val envSupabaseAnonKey: String = try {
-        BuildConfig.SUPABASE_ANON_KEY.trim()
-    } catch (e: Exception) {
-        ""
-    }
-
-    /**
-     * Checks if .env credentials are populated and not default dummy placeholders
-     */
-    val isEnvConfigured: Boolean
-        get() = envSupabaseUrl.isNotBlank() &&
-                !envSupabaseUrl.contains("xyzcompany") &&
-                envSupabaseAnonKey.isNotBlank() &&
-                !envSupabaseAnonKey.contains("your-supabase-anon-key")
-
-    /**
-     * Effective active URL: prioritizes runtime override if stored, otherwise uses .env BuildConfig
-     */
-    var activeSupabaseUrl: String
-        get() {
-            val runtime = getStoredPreference("supabase_runtime_url")
-            if (!runtime.isNullOrBlank()) return runtime
-            return if (isEnvConfigured) envSupabaseUrl else ""
-        }
-        set(value) {
-            setStoredPreference("supabase_runtime_url", value.trim())
-        }
-
-    /**
-     * Effective active Anon Key: prioritizes runtime override if stored, otherwise uses .env BuildConfig
-     */
-    var activeAnonKey: String
-        get() {
-            val runtime = getStoredPreference("supabase_runtime_key")
-            if (!runtime.isNullOrBlank()) return runtime
-            return if (isEnvConfigured) envSupabaseAnonKey else ""
-        }
-        set(value) {
-            setStoredPreference("supabase_runtime_key", value.trim())
-        }
+    val activeAnonKey: String
+        get() = BuildConfig.SUPABASE_ANON_KEY.trim()
 
     val isConnectedAndConfigured: Boolean
         get() = activeSupabaseUrl.isNotBlank() && activeAnonKey.isNotBlank()
@@ -101,7 +64,10 @@ class SupabaseClientConfig private constructor(context: Context) {
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
-            .addInterceptor(SupabaseAuthInterceptor { activeAnonKey })
+            .addInterceptor(SupabaseAuthInterceptor(
+                keyProvider = { activeAnonKey },
+                tokenProvider = { sessionTokenProvider() }
+            ))
             .build()
     }
 
@@ -340,25 +306,38 @@ class SupabaseClientConfig private constructor(context: Context) {
         }
     }
 
-    fun insertProfile(user: AuthUser): Boolean {
+    fun insertProfile(user: AuthUser, accessToken: String? = null): Boolean {
         if (!isConnectedAndConfigured) return false
         return try {
+            val dbAccountType = when (user.accountType) {
+                AccountType.COMPANY_EMPLOYER -> "company"
+                AccountType.GIG_CLIENT -> "gig_provider"
+                AccountType.JOB_SEEKER -> "job_seeker"
+            }
             val json = JSONObject().apply {
                 put("id", user.id)
-                put("email", user.email)
+                put("account_type", dbAccountType)
                 put("full_name", user.fullName)
                 put("phone", user.phone)
-                put("account_type", user.accountType.name)
-                put("company_name", user.companyName)
-                put("headline", user.headline)
-                put("city_location", user.companyLocation)
+                put("city", user.companyLocation)
             }
-            val res = insertRecord("profiles", json)
-            val success = res.isSuccessful
-            res.close()
-            success
+            val url = getTableEndpoint("profiles")
+            val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val builder = Request.Builder()
+                .url(url)
+                .addHeader("Prefer", "resolution=merge-duplicates,return=representation")
+                .post(body)
+
+            if (!accessToken.isNullOrBlank()) {
+                builder.header("Authorization", "Bearer $accessToken")
+            }
+
+            val request = builder.build()
+            httpClient.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error inserting user profile into Supabase", e)
+            Log.e(TAG, "Error inserting/upserting user profile into Supabase", e)
             false
         }
     }
@@ -589,26 +568,20 @@ class SupabaseClientConfig private constructor(context: Context) {
         return list
     }
 
-    private fun getStoredPreference(key: String): String? {
-        val prefs = appContext.getSharedPreferences("supabase_client_prefs", Context.MODE_PRIVATE)
-        return prefs.getString(key, null)
-    }
-
-    private fun setStoredPreference(key: String, value: String) {
-        val prefs = appContext.getSharedPreferences("supabase_client_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString(key, value).apply()
-    }
-
     data class ConnectionResult(
         val isSuccess: Boolean,
         val message: String,
         val httpStatusCode: Int?
     )
 
-    private class SupabaseAuthInterceptor(private val keyProvider: () -> String) : Interceptor {
+    private class SupabaseAuthInterceptor(
+        private val keyProvider: () -> String,
+        private val tokenProvider: () -> String?
+    ) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val original = chain.request()
             val key = keyProvider()
+            val sessionToken = tokenProvider()?.takeIf { it.isNotBlank() }
 
             val builder = original.newBuilder()
                 .header("Content-Type", "application/json")
@@ -616,7 +589,12 @@ class SupabaseClientConfig private constructor(context: Context) {
 
             if (key.isNotBlank()) {
                 builder.header("apikey", key)
-                builder.header("Authorization", "Bearer $key")
+                val bearer = if (sessionToken != null) {
+                    sessionToken
+                } else {
+                    key
+                }
+                builder.header("Authorization", "Bearer $bearer")
             }
 
             return chain.proceed(builder.build())
@@ -625,6 +603,14 @@ class SupabaseClientConfig private constructor(context: Context) {
 
     companion object {
         private const val TAG = "SupabaseClientConfig"
+
+        /**
+         * Supplies the JWT of the currently signed-in Supabase user, if any.
+         * Registered by [com.example.data.auth.SupabaseAuthRepository] so that every PostgREST
+         * request carries the user's identity and Row Level Security resolves auth.uid().
+         */
+        @Volatile
+        var sessionTokenProvider: () -> String? = { null }
 
         @Volatile
         private var instance: SupabaseClientConfig? = null

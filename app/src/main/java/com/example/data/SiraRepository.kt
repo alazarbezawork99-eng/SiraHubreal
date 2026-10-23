@@ -2,6 +2,10 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.data.auth.AuthRepository
+import com.example.data.auth.AuthState
+import com.example.data.auth.SignUpOutcome
+import com.example.data.auth.SupabaseAuthRepository
 import com.example.data.supabase.SupabaseManager
 import com.example.model.AccountType
 import com.example.model.AppSettings
@@ -45,12 +49,31 @@ data class SyncResult(
     val bidsCount: Int = 0
 )
 
+/**
+ * Outcome of a sign-in / sign-up attempt.
+ *
+ * [signedIn] is false when Supabase created the account but still requires email verification,
+ * in which case the UI must not treat the user as authenticated.
+ */
+data class AuthActionResult(
+    val isSuccess: Boolean,
+    val message: String,
+    val signedIn: Boolean = false
+)
+
 class SiraRepository(private val context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("sira_hub_prefs", Context.MODE_PRIVATE)
 
     val supabaseManager = SupabaseManager(context)
+
+    /**
+     * Real Supabase Auth backend. Every register / sign-in / sign-out call goes through it so that
+     * rows land in auth.users (and profiles, via the on_auth_user_created trigger).
+     */
+    val authRepository: AuthRepository = SupabaseAuthRepository(context)
+
     private val backgroundScope = CoroutineScope(Dispatchers.IO)
 
     private val _isSyncing = MutableStateFlow(false)
@@ -91,9 +114,39 @@ class SiraRepository(private val context: Context) {
 
     init {
         loadData()
+        observeAuthSession()
         if (supabaseManager.isConfigured) {
             backgroundScope.launch {
                 syncWithSupabase()
+            }
+        }
+    }
+
+    /**
+     * Mirrors the Supabase auth session into the local cache the UI observes. The server
+     * (auth.users + public.profiles) is the single source of truth for identity and role.
+     */
+    private fun observeAuthSession() {
+        backgroundScope.launch {
+            authRepository.authState.collect { state ->
+                when (state) {
+                    is AuthState.SignedIn -> {
+                        _currentUser.value = state.user
+                        saveUser(state.user)
+                        setSeenWelcome(true)
+                    }
+
+                    AuthState.SignedOut -> {
+                        val current = _currentUser.value
+                        if (current != null && current.isLoggedIn) {
+                            val signedOut = current.copy(isLoggedIn = false)
+                            _currentUser.value = signedOut
+                            saveUser(signedOut)
+                        }
+                    }
+
+                    else -> Unit
+                }
             }
         }
     }
@@ -583,56 +636,34 @@ class SiraRepository(private val context: Context) {
     // ==========================================
     // AUTHENTICATION & USER MANAGEMENT
     // ==========================================
-    fun login(email: String, pass: String): Pair<Boolean, String> {
+    suspend fun login(email: String, pass: String): AuthActionResult {
         val trimmedEmail = email.trim()
         if (trimmedEmail.isBlank()) {
-            return false to "Please enter your email address"
+            return AuthActionResult(false, "Please enter your email address")
         }
-        if (pass.length < 4) {
-            return false to "Password must be at least 4 characters"
+        if (pass.length < 8) {
+            return AuthActionResult(false, "Password must be at least 8 characters")
         }
-
-        val existing = _currentUser.value
-        val determinedRole = when {
-            trimmedEmail.contains("ethiofintech", ignoreCase = true) || trimmedEmail.contains("comp", ignoreCase = true) || trimmedEmail.contains("employer", ignoreCase = true) -> AccountType.COMPANY_EMPLOYER
-            trimmedEmail.contains("kaffa", ignoreCase = true) || trimmedEmail.contains("client", ignoreCase = true) -> AccountType.GIG_CLIENT
-            else -> existing?.accountType ?: AccountType.JOB_SEEKER
+        if (!supabaseManager.isConfigured) {
+            return AuthActionResult(false, NOT_CONFIGURED_MESSAGE)
         }
 
-        val name = if (existing != null && existing.email.equals(trimmedEmail, ignoreCase = true)) {
-            existing.fullName
-        } else {
-            trimmedEmail.substringBefore("@").replace(".", " ").split(" ")
-                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-        }
-
-        val user = AuthUser(
-            id = existing?.id ?: "user_${UUID.randomUUID()}",
-            email = trimmedEmail,
-            fullName = name.ifBlank { "SiraHub User" },
-            phone = existing?.phone ?: "+251 91 123 4567",
-            accountType = determinedRole,
-            companyName = if (determinedRole == AccountType.COMPANY_EMPLOYER) _companyProfile.value.name else "",
-            companyIndustry = if (determinedRole == AccountType.COMPANY_EMPLOYER) _companyProfile.value.industry else "",
-            isLoggedIn = true,
-            registeredDate = existing?.registeredDate ?: "October 2024"
-        )
-
-        _currentUser.value = user
-        saveUser(user)
-
-        // Push profile to Supabase in background
-        if (supabaseManager.isConfigured) {
-            backgroundScope.launch {
-                try { supabaseManager.insertProfile(user) } catch (_: Exception) {}
+        return authRepository.signIn(trimmedEmail, pass).fold(
+            onSuccess = {
+                val user = authRepository.currentUser.value
+                AuthActionResult(
+                    isSuccess = true,
+                    message = "Welcome back, ${user?.displayName ?: trimmedEmail}!",
+                    signedIn = true
+                )
+            },
+            onFailure = { error ->
+                AuthActionResult(false, error.localizedMessage ?: "Sign in failed. Please try again.")
             }
-        }
-
-        setSeenWelcome(true)
-        return true to "Welcome back, ${user.displayName}!"
+        )
     }
 
-    fun register(
+    suspend fun register(
         fullName: String,
         email: String,
         pass: String,
@@ -640,60 +671,109 @@ class SiraRepository(private val context: Context) {
         accountType: AccountType,
         companyName: String = "",
         companyIndustry: String = ""
-    ): Pair<Boolean, String> {
+    ): AuthActionResult {
         val trimmedName = fullName.trim()
         val trimmedEmail = email.trim()
         val trimmedPhone = phone.trim()
 
-        if (trimmedName.isBlank()) return false to "Please enter your full name"
-        if (trimmedEmail.isBlank() || !trimmedEmail.contains("@")) return false to "Please enter a valid email"
-        if (pass.length < 4) return false to "Password must be at least 4 characters"
-        if (trimmedPhone.isBlank()) return false to "Please enter a phone number"
+        if (trimmedName.length < 2) return AuthActionResult(false, "Please enter your full name")
+        if (trimmedEmail.isBlank() || !trimmedEmail.contains("@")) {
+            return AuthActionResult(false, "Please enter a valid email")
+        }
+        if (pass.length < 8) return AuthActionResult(false, "Password must be at least 8 characters")
+        if (trimmedPhone.isBlank()) return AuthActionResult(false, "Please enter a phone number")
 
         if (accountType == AccountType.COMPANY_EMPLOYER && companyName.isBlank()) {
-            return false to "Please enter your company or employer name"
+            return AuthActionResult(false, "Please enter your company or employer name")
+        }
+        if (!supabaseManager.isConfigured) {
+            return AuthActionResult(false, NOT_CONFIGURED_MESSAGE)
         }
 
-        val formattedPhone = if (trimmedPhone.startsWith("+251") || trimmedPhone.startsWith("09") || trimmedPhone.startsWith("07")) {
-            trimmedPhone
-        } else {
-            "+251 $trimmedPhone"
-        }
+        return authRepository
+            .signUp(trimmedEmail, pass, trimmedName, trimmedPhone, accountType)
+            .fold(
+                onSuccess = { outcome ->
+                    when (outcome) {
+                        is SignUpOutcome.SignedIn -> {
+                            seedLocalScaffolding(
+                                userId = outcome.user.id,
+                                email = trimmedEmail,
+                                fullName = trimmedName,
+                                phone = outcome.user.phone.ifBlank { trimmedPhone },
+                                accountType = accountType,
+                                companyName = companyName,
+                                companyIndustry = companyIndustry
+                            )
+                            AuthActionResult(
+                                isSuccess = true,
+                                message = "Account created successfully as ${accountType.label}!",
+                                signedIn = true
+                            )
+                        }
 
-        val user = AuthUser(
-            id = "user_${UUID.randomUUID()}",
-            email = trimmedEmail,
-            fullName = trimmedName,
-            phone = formattedPhone,
-            accountType = accountType,
-            companyName = companyName,
-            companyIndustry = companyIndustry.ifBlank { "Technology & Services" },
-            isLoggedIn = true,
-            registeredDate = SimpleDateFormat("MMM yyyy", Locale.US).format(Date())
-        )
+                        is SignUpOutcome.ConfirmationRequired -> {
+                            seedLocalScaffolding(
+                                userId = null,
+                                email = trimmedEmail,
+                                fullName = trimmedName,
+                                phone = trimmedPhone,
+                                accountType = accountType,
+                                companyName = companyName,
+                                companyIndustry = companyIndustry
+                            )
+                            AuthActionResult(
+                                isSuccess = true,
+                                message = "Account created for ${outcome.email}. Verify your email from the link we sent, then sign in.",
+                                signedIn = false
+                            )
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    AuthActionResult(false, error.localizedMessage ?: "Registration failed. Please try again.")
+                }
+            )
+    }
 
-        _currentUser.value = user
-        saveUser(user)
+    /**
+     * Prepares the empty local CV / company scaffolding for a new account so the user can fill it
+     * in themselves. Existing records belonging to a different account are left alone.
+     */
+    private fun seedLocalScaffolding(
+        userId: String?,
+        email: String,
+        fullName: String,
+        phone: String,
+        accountType: AccountType,
+        companyName: String,
+        companyIndustry: String
+    ) {
+        val localId = userId ?: email
 
-        // Update corresponding profile with fresh empty fields so the user fills their CV themselves
         if (accountType == AccountType.COMPANY_EMPLOYER) {
+            val existing = _companyProfile.value
+            if (existing.contactEmail.equals(email, ignoreCase = true)) return
+
             val freshComp = CompanyProfile(
-                id = "comp_${UUID.randomUUID()}",
+                id = "comp_$localId",
                 name = companyName,
                 industry = companyIndustry.ifBlank { "Technology & Services" },
-                contactEmail = trimmedEmail,
-                contactPhone = formattedPhone,
+                contactEmail = email,
+                contactPhone = phone,
                 isVerified = false
             )
             _companyProfile.value = freshComp
             saveCompanyProfile(freshComp)
         } else {
-            // Fresh, empty CV for the job seeker so they fill this by themselves!
+            val existing = _profile.value
+            if (existing.email.equals(email, ignoreCase = true)) return
+
             val freshProf = UserProfile(
-                id = user.id,
-                fullName = trimmedName,
-                email = trimmedEmail,
-                phone = formattedPhone,
+                id = localId,
+                fullName = fullName,
+                email = email,
+                phone = phone,
                 titleHeadline = "",
                 bioSummary = "",
                 telegramHandle = "",
@@ -710,16 +790,6 @@ class SiraRepository(private val context: Context) {
             _profile.value = freshProf
             saveProfile(freshProf)
         }
-
-        // Push profile to Supabase in background
-        if (supabaseManager.isConfigured) {
-            backgroundScope.launch {
-                try { supabaseManager.insertProfile(user) } catch (_: Exception) {}
-            }
-        }
-
-        setSeenWelcome(true)
-        return true to "Account created successfully as ${accountType.label}!"
     }
 
     fun hasSeenWelcome(): Boolean = prefs.getBoolean("has_seen_welcome_screen", false)
@@ -728,72 +798,13 @@ class SiraRepository(private val context: Context) {
         prefs.edit().putBoolean("has_seen_welcome_screen", seen).apply()
     }
 
-    fun logout() {
+    suspend fun logout() {
+        authRepository.signOut()
         val current = _currentUser.value ?: AuthUser()
         val loggedOut = current.copy(isLoggedIn = false)
         _currentUser.value = loggedOut
         saveUser(loggedOut)
         setSeenWelcome(false)
-    }
-
-    fun switchAccountRole(role: AccountType) {
-        val current = _currentUser.value ?: AuthUser()
-        val updated = current.copy(accountType = role)
-        _currentUser.value = updated
-        saveUser(updated)
-    }
-
-    fun quickDemoLogin(role: AccountType) {
-        val user = when (role) {
-            AccountType.JOB_SEEKER -> AuthUser(
-                id = "user_abebe_1",
-                email = "abebe.kebede.dev@gmail.com",
-                fullName = "Abebe Kebede",
-                phone = "+251 91 123 4567",
-                accountType = AccountType.JOB_SEEKER,
-                headline = "Senior Mobile & Backend Engineer",
-                isLoggedIn = true,
-                registeredDate = "October 2024"
-            )
-            AccountType.COMPANY_EMPLOYER -> AuthUser(
-                id = "user_comp_fintech_1",
-                email = "recruitment@ethiofintech.et",
-                fullName = "EthioFintech Recruitment Lead",
-                phone = "+251 91 144 5566",
-                accountType = AccountType.COMPANY_EMPLOYER,
-                companyName = "EthioFintech & Tech Labs",
-                companyIndustry = "Fintech & Software Engineering",
-                headline = "Head of Talent & Engineering Hiring",
-                isLoggedIn = true,
-                registeredDate = "June 2023"
-            )
-            AccountType.GIG_CLIENT -> AuthUser(
-                id = "user_gig_kaffa_1",
-                email = "projects@kaffacoffee.et",
-                fullName = "Selamawit Tadesse",
-                phone = "+251 92 888 3344",
-                accountType = AccountType.GIG_CLIENT,
-                companyName = "Kaffa Origin Coffee",
-                companyIndustry = "Hospitality & Specialty Coffee",
-                headline = "Creative Project Director",
-                isLoggedIn = true,
-                registeredDate = "August 2024"
-            )
-        }
-        _currentUser.value = user
-        saveUser(user)
-
-        if (role == AccountType.COMPANY_EMPLOYER) {
-            _companyProfile.value = _companyProfile.value.copy(
-                name = user.companyName,
-                contactEmail = user.email,
-                contactPhone = user.phone
-            )
-        } else if (role == AccountType.JOB_SEEKER) {
-            _profile.value = UserProfile.DEMO_ABEBE
-            saveProfile(UserProfile.DEMO_ABEBE)
-        }
-        setSeenWelcome(true)
     }
 
     fun updateSettings(newSettings: AppSettings) {
@@ -1278,17 +1289,17 @@ class SiraRepository(private val context: Context) {
         return try {
             val obj = JSONObject(jsonStr)
             AuthUser(
-                id = obj.optString("id", "user_default_1"),
-                email = obj.optString("email", "abebe.kebede.dev@gmail.com"),
-                fullName = obj.optString("fullName", "Abebe Kebede"),
-                phone = obj.optString("phone", "+251 91 123 4567"),
+                id = obj.optString("id", ""),
+                email = obj.optString("email", ""),
+                fullName = obj.optString("fullName", ""),
+                phone = obj.optString("phone", ""),
                 accountType = AccountType.valueOf(obj.optString("accountType", AccountType.JOB_SEEKER.name)),
                 companyName = obj.optString("companyName", ""),
                 companyIndustry = obj.optString("companyIndustry", ""),
                 companyLocation = obj.optString("companyLocation", "Addis Ababa, Ethiopia"),
-                headline = obj.optString("headline", "Senior Mobile & Backend Engineer"),
+                headline = obj.optString("headline", ""),
                 isLoggedIn = obj.optBoolean("isLoggedIn", false),
-                registeredDate = obj.optString("registeredDate", "October 2024")
+                registeredDate = obj.optString("registeredDate", "")
             )
         } catch (e: Exception) {
             AuthUser(isLoggedIn = false)
@@ -1301,7 +1312,6 @@ class SiraRepository(private val context: Context) {
             put("notificationsEnabled", settings.notificationsEnabled)
             put("jobAlertsEnabled", settings.jobAlertsEnabled)
             put("bidAlertsEnabled", settings.bidAlertsEnabled)
-            put("autoSyncSupabase", settings.autoSyncSupabase)
             put("darkThemeEnabled", settings.darkThemeEnabled)
             put("themeMode", settings.themeMode)
             put("currency", settings.currency)
@@ -1318,7 +1328,6 @@ class SiraRepository(private val context: Context) {
                 notificationsEnabled = obj.optBoolean("notificationsEnabled", true),
                 jobAlertsEnabled = obj.optBoolean("jobAlertsEnabled", true),
                 bidAlertsEnabled = obj.optBoolean("bidAlertsEnabled", true),
-                autoSyncSupabase = obj.optBoolean("autoSyncSupabase", true),
                 darkThemeEnabled = darkEnabled,
                 themeMode = obj.optString("themeMode", if (darkEnabled) "DARK" else "LIGHT"),
                 currency = obj.optString("currency", "ETB")
@@ -1326,5 +1335,10 @@ class SiraRepository(private val context: Context) {
         } catch (e: Exception) {
             AppSettings()
         }
+    }
+
+    companion object {
+        private const val NOT_CONFIGURED_MESSAGE =
+            "SiraHub is not connected to Supabase. Add SUPABASE_URL and SUPABASE_ANON_KEY to your .env file."
     }
 }

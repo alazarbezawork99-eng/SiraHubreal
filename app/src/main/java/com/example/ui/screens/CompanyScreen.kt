@@ -354,19 +354,6 @@ fun CompanyScreen(
                     },
                     modifier = Modifier.testTag("tab_company_jobs")
                 )
-                Tab(
-                    selected = selectedCompanyTab == 2,
-                    onClick = { selectedCompanyTab = 2 },
-                    text = {
-                        Text(
-                            text = "Database (Supabase)",
-                            fontSize = 12.sp,
-                            fontWeight = if (selectedCompanyTab == 2) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selectedCompanyTab == 2) EthioEmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    modifier = Modifier.testTag("tab_company_database")
-                )
             }
         }
 
@@ -487,15 +474,6 @@ fun CompanyScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
-                }
-            }
-            2 -> {
-                // Database & Supabase Integration Panel
-                item {
-                    CompanyDatabasePanel(
-                        viewModel = viewModel,
-                        onOpenSettings = { viewModel.setShowSupabaseSettings(true) }
-                    )
                 }
             }
         }
@@ -827,71 +805,6 @@ fun ApplicantDossierDialog(
             }
         }
     )
-}
-
-@Composable
-fun CompanyDatabasePanel(
-    viewModel: SiraViewModel,
-    onOpenSettings: () -> Unit
-) {
-    val isConfigured = viewModel.supabaseManager.isConfigured
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Cloud, contentDescription = null, tint = EthioEmeraldPrimary, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Cloud Database: Supabase", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-                Surface(
-                    color = if (isConfigured) Color(0xFFDCFCE7) else Color(0xFFFEF3C7),
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Text(
-                        text = if (isConfigured) "Connected" else "Local DB Active",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isConfigured) EthioEmeraldDark else EthioGoldDark,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = if (isConfigured) {
-                    "SiraHub is syncing with your Supabase cloud PostgreSQL project (${viewModel.supabaseManager.supabaseUrl.take(28)}...)."
-                } else {
-                    "Currently running on high-speed on-device persistent database. You can connect a free Supabase project to enable real-time cloud backup, SQL queries, and multi-user sync."
-                },
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Button(
-                onClick = onOpenSettings,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = EthioEmeraldPrimary),
-                modifier = Modifier.fillMaxWidth().testTag("open_supabase_settings_btn")
-            ) {
-                Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Configure Supabase & View SQL Schema", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
-        }
-    }
 }
 
 @Composable

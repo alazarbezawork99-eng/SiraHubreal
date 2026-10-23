@@ -704,8 +704,8 @@ fun WelcomeScreen(
                                         regErrorMessage = "Please enter a valid email address"
                                         return@Button
                                     }
-                                    if (regPassword.length < 4) {
-                                        regErrorMessage = "Password must be at least 4 characters"
+                                    if (regPassword.length < 8) {
+                                        regErrorMessage = "Password must be at least 8 characters"
                                         return@Button
                                     }
                                     if (regPassword != regConfirmPassword) {
@@ -730,8 +730,15 @@ fun WelcomeScreen(
                                             companyIndustry = regCompanyIndustry
                                         )
                                         isRegSubmitting = false
-                                        if (!res.first) {
-                                            regErrorMessage = res.second
+                                        if (!res.isSuccess) {
+                                            regErrorMessage = res.message
+                                        } else if (!res.signedIn) {
+                                            // Supabase still needs email verification: keep the form on
+                                            // screen but tell the user what to do next.
+                                            regErrorMessage = null
+                                            loginEmail = regEmail
+                                            activeAuthMode = AuthMode.LOGIN
+                                            loginErrorMessage = res.message
                                         }
                                     }
                                 },
@@ -827,8 +834,8 @@ fun WelcomeScreen(
                                         loginErrorMessage = "Please enter your email"
                                         return@Button
                                     }
-                                    if (loginPassword.length < 4) {
-                                        loginErrorMessage = "Password must be at least 4 characters"
+                                    if (loginPassword.length < 8) {
+                                        loginErrorMessage = "Password must be at least 8 characters"
                                         return@Button
                                     }
 
@@ -837,8 +844,8 @@ fun WelcomeScreen(
                                         delay(300)
                                         val res = viewModel.login(loginEmail, loginPassword)
                                         isLoginSubmitting = false
-                                        if (!res.first) {
-                                            loginErrorMessage = res.second
+                                        if (!res.isSuccess) {
+                                            loginErrorMessage = res.message
                                         }
                                     }
                                 },
@@ -865,76 +872,6 @@ fun WelcomeScreen(
                             }
                         }
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ==========================================
-            // 5. 1-TAP DEMO TEST-DRIVE PERSONAS
-            // ==========================================
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FlashOn,
-                            contentDescription = null,
-                            tint = EthioGoldDark,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Instant 1-Tap Demo Access",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Text(
-                        text = "Experience SiraHub immediately as a verified persona:",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    DemoPersonaRow(
-                        title = "Abebe Kebede",
-                        subtitle = "Senior Android Engineer • Job Seeker",
-                        roleBadge = "ሥራ ፈላጊ",
-                        badgeColor = EthioEmeraldPrimary,
-                        testTag = "welcome_demo_job_seeker",
-                        onClick = { viewModel.quickDemoLogin(AccountType.JOB_SEEKER) }
-                    )
-
-                    DemoPersonaRow(
-                        title = "EthioFintech Labs",
-                        subtitle = "Company Employer • 5 Open Vacancies",
-                        roleBadge = "ቀጣሪ ድርጅት",
-                        badgeColor = EthioGoldDark,
-                        testTag = "welcome_demo_company",
-                        onClick = { viewModel.quickDemoLogin(AccountType.COMPANY_EMPLOYER) }
-                    )
-
-                    DemoPersonaRow(
-                        title = "Kaffa Origin Roasters",
-                        subtitle = "Gig Client / Poster • Addis Ababa",
-                        roleBadge = "የጊግ ቀጣሪ",
-                        badgeColor = EthioCrimsonTertiary,
-                        testTag = "welcome_demo_gig_client",
-                        onClick = { viewModel.quickDemoLogin(AccountType.GIG_CLIENT) }
-                    )
                 }
             }
 
@@ -1076,8 +1013,15 @@ private fun WelcomeRoleCard(
                         text = title,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) activeDark else MaterialTheme.colorScheme.onSurface
+                        color = if (isSelected) activeDark else MaterialTheme.colorScheme.onSurface,
+                        // Without weight(1f) the long mixed-script titles such as
+                        // "Gig Provider (የጊግ አቅራቢ / ቀጣሪ)" were squeezed by the badge and wrapped
+                        // one character per line, which read as vertical text.
+                        maxLines = 2,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Surface(
                         shape = RoundedCornerShape(6.dp),
@@ -1088,6 +1032,8 @@ private fun WelcomeRoleCard(
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isSelected) activeDark else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -1098,76 +1044,6 @@ private fun WelcomeRoleCard(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 15.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DemoPersonaRow(
-    title: String,
-    subtitle: String,
-    roleBadge: String,
-    badgeColor: Color,
-    testTag: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .testTag(testTag)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = badgeColor.copy(alpha = 0.12f)
-                    ) {
-                        Text(
-                            text = roleBadge,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = badgeColor,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-                Text(
-                    text = subtitle,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = badgeColor.copy(alpha = 0.15f)
-            ) {
-                Text(
-                    text = "1-Tap In",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = badgeColor,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                 )
             }
         }
