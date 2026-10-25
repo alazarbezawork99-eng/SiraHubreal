@@ -8,6 +8,7 @@ import com.example.data.AuthActionResult
 import com.example.data.SiraRepository
 import com.example.data.SyncResult
 import com.example.data.core.DataResult
+import com.example.data.repository.GigsRepository
 import com.example.data.repository.JobsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -43,11 +44,13 @@ import java.util.UUID
 @HiltViewModel
 class SiraViewModel @Inject constructor(
     application: Application,
-    private val jobsRepository: JobsRepository
+    private val jobsRepository: JobsRepository,
+    private val gigsRepository: GigsRepository
 ) : AndroidViewModel(application) {
 
-    // Still the legacy store for gigs, applications, bids, profile, company and bookmarks.
-    // Jobs have moved to JobsRepository; this class is deleted once every domain has migrated.
+    // Still the legacy store for applications, bids, profile, company and bookmarks.
+    // Jobs and gigs have moved to their repositories; this class is deleted once every domain
+    // has migrated.
     private val repository = SiraRepository(application.applicationContext)
 
     /** Live jobs from the Room cache, maintained by [JobsRepository]. */
@@ -55,7 +58,11 @@ class SiraViewModel @Inject constructor(
         .observeJobs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val gigs = repository.gigs
+    /** Live gigs from the Room cache, maintained by [GigsRepository]. */
+    val gigs: StateFlow<List<GigPost>> = gigsRepository
+        .observeGigs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val profile = repository.profile
     val companyProfile = repository.companyProfile
     val applications = repository.applications
@@ -419,7 +426,8 @@ class SiraViewModel @Inject constructor(
     ) {
         val currentProf = profile.value
         val newGig = GigPost(
-            id = "gig_${UUID.randomUUID()}",
+            // Placeholder only: the server assigns the real uuid on insert. Nothing reads this id.
+            id = "",
             title = title,
             clientName = if (currentUser.value?.accountType == AccountType.COMPANY_EMPLOYER) companyProfile.value.name else currentProf.fullName.ifBlank { "Client" },
             clientType = if (currentUser.value?.accountType == AccountType.COMPANY_EMPLOYER) "Corporate Employer" else "Individual Client",
@@ -438,9 +446,30 @@ class SiraViewModel @Inject constructor(
             isPostedByUser = true,
             isUrgent = isUrgent
         )
-        repository.addGig(newGig)
-        _snackbarMessage.value = "Gig \"$title\" posted! Freelancers can now bid."
-        _currentTab.value = 1 // Navigate to Gigs tab
+        viewModelScope.launch {
+            when (val result = gigsRepository.createGig(newGig)) {
+                is DataResult.Success -> {
+                    _snackbarMessage.value = "Gig \"$title\" posted! Freelancers can now bid."
+                    _currentTab.value = 1 // Navigate to Gigs tab
+                }
+
+                is DataResult.NetworkError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(R.string.error_network)
+
+                is DataResult.AuthError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(R.string.error_auth_expired)
+
+                is DataResult.ValidationError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(result.messageRes)
+
+                is DataResult.ServerError ->
+                    _snackbarMessage.value = getApplication<Application>()
+                        .getString(R.string.error_server)
+            }
+        }
     }
 
     // Profile updates
@@ -528,12 +557,15 @@ class SiraViewModel @Inject constructor(
     fun syncWithSupabase(showSnackbar: Boolean = true, onComplete: ((SyncResult) -> Unit)? = null) {
         viewModelScope.launch {
             val jobsResult = jobsRepository.refresh()
+            val gigsResult = gigsRepository.refresh()
             val legacyResult = repository.syncWithSupabase()
 
-            val message = if (jobsResult is DataResult.Success) {
-                legacyResult.message
-            } else {
-                jobErrorMessage(jobsResult)
+            // Report the first failure the user can act on; otherwise fall through to the legacy
+            // summary so the message still reflects the domains that have not migrated yet.
+            val message = when {
+                jobsResult !is DataResult.Success -> jobErrorMessage(jobsResult)
+                gigsResult !is DataResult.Success -> jobErrorMessage(gigsResult)
+                else -> legacyResult.message
             }
 
             if (showSnackbar) {

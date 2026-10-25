@@ -1,5 +1,7 @@
 package com.example.di
 
+import com.example.data.repository.GigsRepository
+import com.example.data.repository.GigsRepositoryImpl
 import com.example.data.repository.JobsRepository
 import com.example.data.repository.JobsRepositoryImpl
 import dagger.Binds
@@ -21,4 +23,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindJobsRepository(impl: JobsRepositoryImpl): JobsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGigsRepository(impl: GigsRepositoryImpl): GigsRepository
 }

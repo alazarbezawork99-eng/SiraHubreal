@@ -8,10 +8,8 @@ import com.example.model.ExperienceLevel
 import com.example.model.JobPost
 import com.example.model.WorkplaceType
 import kotlinx.serialization.json.Json
-import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 
 /**
  * Translates between the three representations of a job:
@@ -165,52 +163,13 @@ object JobMapper {
      */
     internal fun formatDeadline(expiresAt: String?): String {
         if (expiresAt.isNullOrBlank()) return "Open until filled"
-        val date = parseIso8601(expiresAt) ?: return "Open until filled"
-        return "Apply by " + SimpleDateFormat("MMM d, yyyy", Locale.US).format(date)
+        val date = DateTimeFormatting.parseIso8601(expiresAt) ?: return "Open until filled"
+        return "Apply by " + DateTimeFormatting.shortDate(date)
     }
 
-    /** Turns a `created_at` timestamp into "Just now", "3h ago", "2d ago", or a date. */
-    internal fun relativeTime(createdAt: String): String {
-        if (createdAt.isBlank()) return "Recently"
-        val created = parseIso8601(createdAt) ?: return "Recently"
-        val diffMs = System.currentTimeMillis() - created.time
-        if (diffMs < 0) return "Just now"
+    internal fun relativeTime(createdAt: String): String =
+        DateTimeFormatting.relativeTime(createdAt)
 
-        val minutes = diffMs / 60_000
-        val hours = diffMs / 3_600_000
-        val days = diffMs / 86_400_000
-
-        return when {
-            minutes < 1 -> "Just now"
-            minutes < 60 -> "${minutes}m ago"
-            hours < 24 -> "${hours}h ago"
-            days < 30 -> "${days}d ago"
-            else -> SimpleDateFormat("MMM d, yyyy", Locale.US).format(created)
-        }
-    }
-
-    /**
-     * Parses the ISO-8601 timestamps PostgREST returns. Supabase emits fractional seconds and a
-     * timezone offset; `SimpleDateFormat` cannot handle the `T` separator or 6-digit fractions, so
-     * we normalise before parsing rather than pulling in a date library.
-     */
-    internal fun parseIso8601(value: String): Date? {
-        val normalised = value
-            .replace('T', ' ')
-            .substringBefore('.')
-            .substringBefore('+')
-            .trim()
-            .removeSuffix("Z")
-
-        val patterns = listOf("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd")
-        for (pattern in patterns) {
-            val parsed = runCatching {
-                SimpleDateFormat(pattern, Locale.US).apply {
-                    timeZone = TimeZone.getTimeZone("UTC")
-                }.parse(normalised)
-            }.getOrNull()
-            if (parsed != null) return parsed
-        }
-        return null
-    }
+    internal fun parseIso8601(value: String): Date? =
+        DateTimeFormatting.parseIso8601(value)
 }

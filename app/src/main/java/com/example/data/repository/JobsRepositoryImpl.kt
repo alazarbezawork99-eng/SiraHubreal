@@ -1,8 +1,8 @@
 package com.example.data.repository
 
-import android.util.Base64
 import android.util.Log
 import com.example.R
+import com.example.data.auth.CurrentUserProvider
 import com.example.data.auth.SessionTokenStore
 import com.example.data.core.DataResult
 import com.example.data.local.SiraHubDatabase
@@ -38,6 +38,7 @@ class JobsRepositoryImpl @Inject constructor(
     private val database: SiraHubDatabase,
     private val http: SupabaseHttpClient,
     private val tokenStore: SessionTokenStore,
+    private val currentUser: CurrentUserProvider,
     /**
      * Blocking OkHttp calls must never run on the caller's dispatcher: `viewModelScope` is
      * Main-immediate, so without this the very first request throws NetworkOnMainThreadException.
@@ -223,24 +224,7 @@ class JobsRepositoryImpl @Inject constructor(
         }
     }
 
-    /**
-     * The signed-in user's id, read from the JWT `sub` claim.
-     *
-     * We decode the token rather than storing the id separately so there is exactly one source of
-     * identity. An unparseable token yields null, which simply means "nothing is marked as mine".
-     */
-    private fun currentUserId(): String? {
-        val token = tokenStore.currentToken() ?: return null
-        return runCatching {
-            val payload = token.split('.')
-            if (payload.size < 2) return null
-            val decoded = Base64.decode(
-                payload[1],
-                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-            )
-            JSONObject(String(decoded, Charsets.UTF_8)).optString("sub").takeIf { it.isNotBlank() }
-        }.getOrNull()
-    }
+    private fun currentUserId(): String? = currentUser.userId()
 
     /** Decodes a PostgREST payload. Returns null when the body is not a JSON array of jobs. */
     private fun decodeJobs(body: String): List<JobDto>? =
