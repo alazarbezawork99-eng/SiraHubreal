@@ -59,7 +59,7 @@ object GigMapper {
      * browsing and is not an error.
      */
     fun dtoToContactEntity(dto: GigDto): GigContactEntity? {
-        val contact = dto.contacts?.firstOrNull() ?: return null
+        val contact = dto.contactOrNull() ?: return null
         if (contact.clientPhone.isNullOrBlank() && contact.clientTelegram.isNullOrBlank()) return null
         return GigContactEntity(
             gigId = dto.id,

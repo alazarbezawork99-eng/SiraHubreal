@@ -107,6 +107,35 @@ class FormValidatorsTest {
     }
 
     @Test
+    fun `the gig description that Postgres rejected is caught on the client`() {
+        // Regression: "sdfddsf" is 7 characters. gigs_description_check requires >= 10, so the
+        // server returned 23514 and the user only saw "some details are not valid".
+        val errors = FormValidators.validateGigForm(
+            title = "Fix the table",
+            category = "Errands & Logistics",
+            budgetText = "15000",
+            durationText = "3 Days",
+            description = "sdfddsf"
+        )
+        assertEquals(
+            R.string.field_description_too_short,
+            errors.errorFor(FormField.GIG_DESCRIPTION)
+        )
+    }
+
+    @Test
+    fun `a valid gig form has no errors`() {
+        val errors = FormValidators.validateGigForm(
+            title = "Fix the table",
+            category = "Errands & Logistics",
+            budgetText = "15000",
+            durationText = "3 Days",
+            description = "Repair the wooden dining table and re-varnish it."
+        )
+        assertTrue(errors.isEmpty())
+    }
+
+    @Test
     fun `ethiopian phone formats are accepted and others rejected`() {
         assertTrue(FormValidators.isValidEthiopianPhone("+251911234567"))
         assertTrue(FormValidators.isValidEthiopianPhone("0911234567"))

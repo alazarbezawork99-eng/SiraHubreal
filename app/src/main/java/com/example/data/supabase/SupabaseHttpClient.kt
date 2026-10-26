@@ -170,8 +170,24 @@ class SupabaseHttpClient @Inject constructor(
             message.contains("job") && message.contains("open") -> R.string.error_job_closed
             message.contains("gig") && message.contains("open") -> R.string.error_gig_closed
 
+            // 23514 = check_violation. Name the field when the constraint tells us which one it is,
+            // so the user is not left guessing after the client-side validation has already passed.
+            code == "23514" -> checkConstraintMessageRes(message)
+
             else -> R.string.error_validation_failed
         }
+    }
+
+    /** Maps a named CHECK constraint to the field it guards. */
+    private fun checkConstraintMessageRes(message: String): Int = when {
+        message.contains("description") -> R.string.field_description_too_short
+        message.contains("title") -> R.string.field_title_too_short
+        message.contains("budget") -> R.string.field_budget_invalid
+        message.contains("salary") -> R.string.field_salary_range_invalid
+        message.contains("full_name") -> R.string.field_full_name_required
+        message.contains("location") -> R.string.field_location_required
+        message.contains("client_name") -> R.string.field_company_required
+        else -> R.string.error_validation_failed
     }
 
     private class SupabaseAuthInterceptor(

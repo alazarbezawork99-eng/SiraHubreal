@@ -2,6 +2,11 @@ package com.example.data.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Wire representation of a row in `public.gigs`.
@@ -31,19 +36,56 @@ data class GigDto(
     @SerialName("bids_count") val bidsCount: Int = 0,
     @SerialName("created_at") val createdAt: String? = null,
     /**
-     * Present only when the row was fetched with an embedded `gig_contacts` join and the caller is
-     * permitted to read it. Null is the normal case for anonymous browsing.
+     * The embedded `gig_contacts` join, kept as raw JSON on purpose.
+     *
+     * `gig_contacts.gig_id` is UNIQUE, so PostgREST treats this as a to-one relationship and
+     * returns a single object (`"gig_contacts": {...}`). If that constraint were ever dropped it
+     * would return an array instead. Decoding into a concrete type would break the moment the
+     * cardinality changed, so the raw form is kept and normalised by [contactOrNull].
+     *
+     * Null is the normal case for anonymous browsing: RLS simply omits the row.
      */
-    @SerialName("gig_contacts") val contacts: List<GigContactDto>? = null
-)
+    @SerialName("gig_contacts") val contacts: JsonElement? = null
+) {
+    /** The embedded contact row, whichever shape PostgREST chose to send. */
+    fun contactOrNull(): GigContactDto? = when (val element = contacts) {
+        null, is JsonNull -> null
+        is JsonObject -> GigContactDto.from(element)
+        is JsonArray -> element.firstOrNull()?.let { item ->
+            (item as? JsonObject)?.let(GigContactDto::from)
+        }
+        else -> null
+    }
+}
 
 /** Wire representation of a row in `public.gig_contacts`. */
 @Serializable
 data class GigContactDto(
-    @SerialName("gig_id") val gigId: String,
+    @SerialName("gig_id") val gigId: String? = null,
     @SerialName("client_phone") val clientPhone: String? = null,
     @SerialName("client_telegram") val clientTelegram: String? = null
-)
+) {
+    companion object {
+        /**
+         * Reads a contact out of an embedded object.
+         *
+         * The embedded form only contains the columns named in the `select`, so `gig_id` is
+         * usually absent; every field is therefore read defensively.
+         */
+        fun from(json: JsonObject): GigContactDto = GigContactDto(
+            gigId = json.stringOrNull("gig_id"),
+            clientPhone = json.stringOrNull("client_phone"),
+            clientTelegram = json.stringOrNull("client_telegram")
+        )
+
+        private fun JsonObject.stringOrNull(key: String): String? =
+            (this[key] as? JsonElement)
+                ?.takeIf { it !is JsonNull }
+                ?.jsonPrimitive
+                ?.content
+                ?.takeIf { it.isNotBlank() }
+    }
+}
 
 /** Body sent when creating a gig. Only columns the client is allowed to set. */
 @Serializable

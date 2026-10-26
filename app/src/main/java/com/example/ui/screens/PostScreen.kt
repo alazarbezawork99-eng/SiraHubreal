@@ -459,6 +459,9 @@ fun PostGigForm(viewModel: SiraViewModel) {
     var clientTelegram by remember { mutableStateOf(userProfile.telegramHandle) }
     var isUrgent by remember { mutableStateOf(false) }
 
+    // Populated on submit. Each entry highlights one field and explains what is wrong with it.
+    var gigFieldErrors by remember { mutableStateOf<List<FieldError>>(emptyList()) }
+
     val categories = listOf(
         "Translation & Writing", "Graphic Design", "Web & Mobile Dev",
         "Photography & Video", "Accounting & Finance", "Tutoring & Education", "Errands & Logistics"
@@ -479,13 +482,16 @@ fun PostGigForm(viewModel: SiraViewModel) {
             )
             Spacer(modifier = Modifier.height(14.dp))
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Gig Title (e.g. Translate 15-page document)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("post_gig_title_input")
-            )
+            FieldContainer(errorRes = gigFieldErrors.errorFor(FormField.GIG_TITLE)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Gig Title (e.g. Translate 15-page document)") },
+                    singleLine = true,
+                    isError = gigFieldErrors.errorFor(FormField.GIG_TITLE) != null,
+                    modifier = Modifier.fillMaxWidth().testTag("post_gig_title_input")
+                )
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -500,6 +506,7 @@ fun PostGigForm(viewModel: SiraViewModel) {
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Task Category") },
+                    isError = gigFieldErrors.errorFor(FormField.GIG_CATEGORY) != null,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
                     modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
                 )
@@ -522,33 +529,48 @@ fun PostGigForm(viewModel: SiraViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = budgetText,
-                    onValueChange = { budgetText = it.filter { c -> c.isDigit() } },
-                    label = { Text("Budget (ETB)") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("post_gig_budget_input")
-                )
-                OutlinedTextField(
-                    value = durationText,
-                    onValueChange = { durationText = it },
-                    label = { Text("Turnaround (e.g. 3 Days)") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("post_gig_duration_input")
-                )
+                FieldContainer(
+                    errorRes = gigFieldErrors.errorFor(FormField.GIG_BUDGET),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = budgetText,
+                        onValueChange = { budgetText = it.filter { c -> c.isDigit() } },
+                        label = { Text("Budget (ETB)") },
+                        singleLine = true,
+                        isError = gigFieldErrors.errorFor(FormField.GIG_BUDGET) != null,
+                        modifier = Modifier.fillMaxWidth().testTag("post_gig_budget_input")
+                    )
+                }
+                FieldContainer(
+                    errorRes = gigFieldErrors.errorFor(FormField.GIG_DURATION),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = durationText,
+                        onValueChange = { durationText = it },
+                        label = { Text("Turnaround (e.g. 3 Days)") },
+                        singleLine = true,
+                        isError = gigFieldErrors.errorFor(FormField.GIG_DURATION) != null,
+                        modifier = Modifier.fillMaxWidth().testTag("post_gig_duration_input")
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                label = { Text("Task Description") },
-                placeholder = { Text("Describe what needs to be done, guidelines, and context...") },
-                minLines = 3,
-                maxLines = 6,
-                modifier = Modifier.fillMaxWidth().testTag("post_gig_desc_input")
-            )
+            FieldContainer(errorRes = gigFieldErrors.errorFor(FormField.GIG_DESCRIPTION)) {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Task Description") },
+                    placeholder = { Text("Describe what needs to be done, guidelines, and context...") },
+                    minLines = 3,
+                    maxLines = 6,
+                    isError = gigFieldErrors.errorFor(FormField.GIG_DESCRIPTION) != null,
+                    modifier = Modifier.fillMaxWidth().testTag("post_gig_desc_input")
+                )
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -611,26 +633,35 @@ fun PostGigForm(viewModel: SiraViewModel) {
 
             Button(
                 onClick = {
-                    if (title.isNotBlank()) {
-                        val budget = budgetText.toLongOrNull() ?: 10000L
+                    // Validate before touching the network so the user is told exactly which input
+                    // is wrong, instead of receiving a generic server error after a round trip.
+                    val found = FormValidators.validateGigForm(
+                        title = title,
+                        category = category,
+                        budgetText = budgetText,
+                        durationText = durationText,
+                        description = description
+                    )
+                    gigFieldErrors = found
+
+                    if (found.isEmpty()) {
                         val delivs = deliverablesText.lines().filter { it.isNotBlank() }
                         val skills = skillsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
                         viewModel.postShortTermGig(
-                            title = title,
+                            title = title.trim(),
                             category = category,
-                            budgetETB = budget,
+                            budgetETB = budgetText.trim().toLongOrNull() ?: 0L,
                             pricingType = GigPricingType.FIXED,
-                            durationText = durationText.ifBlank { "Flexible" },
-                            description = description.ifBlank { "Short-term freelance project for $category in Ethiopia." },
-                            deliverables = if (delivs.isNotEmpty()) delivs else listOf("Final completed work deliverables"),
-                            requiredSkills = if (skills.isNotEmpty()) skills else listOf(category),
-                            clientPhone = clientPhone,
-                            clientTelegram = clientTelegram,
+                            durationText = durationText.trim(),
+                            description = description.trim(),
+                            deliverables = delivs,
+                            requiredSkills = skills,
+                            clientPhone = clientPhone.trim(),
+                            clientTelegram = clientTelegram.trim(),
                             isUrgent = isUrgent
                         )
                     }
                 },
-                enabled = title.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = EthioGoldSecondary),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("publish_gig_btn")

@@ -1,7 +1,10 @@
 package com.example.data.mapper
 
-import com.example.data.dto.GigContactDto
 import com.example.data.dto.GigDto
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import com.example.model.GigPricingType
 import com.example.model.GigStatus
 import org.junit.Assert.assertEquals
@@ -17,7 +20,7 @@ class GigMapperTest {
         ownerId: String = "owner-1",
         pricingType: String = "fixed",
         status: String = "open",
-        contacts: List<GigContactDto>? = null,
+        contacts: JsonElement? = null,
         createdAt: String? = "2024-05-01T10:00:00.123456+00:00"
     ) = GigDto(
         id = id,
@@ -79,9 +82,15 @@ class GigMapperTest {
     }
 
     @Test
-    fun `contact details are mapped when present`() {
+    fun `contact details are mapped from a to-one embedded object`() {
+        // gig_contacts.gig_id is UNIQUE, so PostgREST embeds a single object, not an array.
         val dtoWithContacts = dto(
-            contacts = listOf(GigContactDto("g1", "+251911234567", "@kaffa"))
+            contacts = JsonObject(
+                mapOf(
+                    "client_phone" to JsonPrimitive("+251911234567"),
+                    "client_telegram" to JsonPrimitive("@kaffa")
+                )
+            )
         )
         val contact = GigMapper.dtoToContactEntity(dtoWithContacts)
 
@@ -90,8 +99,23 @@ class GigMapperTest {
     }
 
     @Test
+    fun `contact details are still mapped if the join comes back as an array`() {
+        // Defensive: if the UNIQUE constraint were dropped the embed becomes to-many.
+        val dtoWithContacts = dto(
+            contacts = JsonArray(
+                listOf(
+                    JsonObject(mapOf("client_phone" to JsonPrimitive("+251911234567")))
+                )
+            )
+        )
+        val contact = GigMapper.dtoToContactEntity(dtoWithContacts)
+
+        assertEquals("+251911234567", contact?.clientPhone)
+    }
+
+    @Test
     fun `an all-blank contact row is not cached`() {
-        val blank = dto(contacts = listOf(GigContactDto("g1", null, "")))
+        val blank = dto(contacts = JsonObject(mapOf("client_telegram" to JsonPrimitive(""))))
         assertNull(GigMapper.dtoToContactEntity(blank))
     }
 
